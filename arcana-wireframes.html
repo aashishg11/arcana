@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arcana — Wireframes (Conversation 4)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --display:"Bricolage Grotesque", "Inter", system-ui, sans-serif;
+    --body:"Inter", system-ui, -apple-system, sans-serif;
+    --mono:"JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --iris:#7B6CF6;
+    --iris-soft:rgba(123,108,246,0.16);
+    --up:#46C68A;
+    --down:#F0726A;
+    --gold:#D9A94A;
+    --gold-soft:rgba(217,169,74,0.16);
+  }
+  [data-theme="dark"]{
+    --bg:#131019;
+    --bg-grad:radial-gradient(1200px 600px at 70% -10%, rgba(123,108,246,0.10), transparent 60%), #131019;
+    --surface:#1C1826;
+    --elevated:#241F30;
+    --hairline:rgba(255,255,255,0.08);
+    --hairline-strong:rgba(255,255,255,0.14);
+    --text:#ECEAF2;
+    --text-dim:#9A93AD;
+    --text-faint:#6A6480;
+    --cloud:#7E8BAE;
+    --cloud-soft:rgba(126,139,174,0.16);
+    --shadow:0 24px 60px rgba(0,0,0,0.55);
+    --phone-shell:#070510;
+  }
+  [data-theme="light"]{
+    --bg:#EFEEF5;
+    --bg-grad:radial-gradient(1200px 600px at 75% -15%, rgba(91,73,224,0.10), transparent 55%), #EFEEF5;
+    --surface:#FFFFFF;
+    --elevated:#FBFAFE;
+    --hairline:rgba(26,22,38,0.08);
+    --hairline-strong:rgba(26,22,38,0.14);
+    --text:#1A1626;
+    --text-dim:#5F5878;
+    --text-faint:#9A93AD;
+    --iris:#5B49E0;
+    --iris-soft:rgba(91,73,224,0.10);
+    --cloud:#6F7CA0;
+    --cloud-soft:rgba(111,124,160,0.12);
+    --shadow:0 20px 48px rgba(40,30,90,0.16);
+    --phone-shell:#D7D4E4;
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg-grad);color:var(--text);font-family:var(--body);-webkit-font-smoothing:antialiased}
+  body{min-height:100vh;padding:0 0 80px}
+
+  /* ---------- top chrome ---------- */
+  .chrome{
+    position:sticky;top:0;z-index:50;
+    background:color-mix(in srgb, var(--bg) 82%, transparent);
+    backdrop-filter:blur(14px);
+    border-bottom:1px solid var(--hairline);
+    padding:18px 28px;
+  }
+  .chrome-row{display:flex;align-items:center;gap:20px;flex-wrap:wrap;max-width:1500px;margin:0 auto}
+  .brand{font-family:var(--display);font-weight:800;font-size:22px;letter-spacing:-0.02em;display:flex;align-items:center;gap:10px}
+  .brand .glyph{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,var(--iris),color-mix(in srgb,var(--iris) 55%, var(--gold)));display:grid;place-items:center;color:#fff;font-size:15px;box-shadow:0 4px 14px var(--iris-soft)}
+  .brand .sub{font-family:var(--mono);font-weight:400;font-size:11px;color:var(--text-faint);letter-spacing:0;margin-left:2px;align-self:flex-end;padding-bottom:3px}
+  .spacer{flex:1}
+  .toggle{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--hairline);border-radius:999px;padding:5px}
+  .toggle button{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--text-dim);background:transparent;border:0;padding:7px 14px;border-radius:999px;cursor:pointer;transition:.18s}
+  .toggle button.on{background:var(--iris);color:#fff}
+
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;max-width:1500px;margin:14px auto 0;padding:0}
+  .tab{font-family:var(--body);font-weight:500;font-size:13px;color:var(--text-dim);background:transparent;border:1px solid var(--hairline);padding:9px 15px;border-radius:10px;cursor:pointer;transition:.16s;display:flex;align-items:center;gap:9px}
+  .tab:hover{border-color:var(--hairline-strong);color:var(--text)}
+  .tab.on{background:var(--text);color:var(--bg);border-color:var(--text)}
+  .tab .cap{font-family:var(--mono);font-size:10px;opacity:.7}
+  .tab.on .cap{opacity:.6}
+
+  /* ---------- layout ---------- */
+  .wrap{max-width:1500px;margin:0 auto;padding:34px 28px 0}
+  .screen{display:none}
+  .screen.on{display:block;animation:fade .35s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+  .screen-head{margin-bottom:24px;max-width:720px}
+  .screen-head h2{font-family:var(--display);font-size:30px;font-weight:700;letter-spacing:-0.02em;margin-bottom:8px}
+  .screen-head .route{font-family:var(--mono);font-size:12px;color:var(--iris);margin-bottom:12px}
+  .screen-head p{color:var(--text-dim);font-size:15px;line-height:1.6}
+
+  .stage{display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap}
+  .ann{flex:1;min-width:300px;max-width:520px;display:flex;flex-direction:column;gap:14px}
+
+  /* ---------- phone ---------- */
+  .phone{
+    width:372px;flex:0 0 372px;
+    background:var(--phone-shell);
+    border-radius:46px;padding:12px;
+    box-shadow:var(--shadow);
+    position:relative;
+  }
+  .screenarea{
+    background:var(--bg);border-radius:36px;overflow:hidden;position:relative;
+    height:760px;display:flex;flex-direction:column;
+  }
+  .statusbar{display:flex;justify-content:space-between;align-items:center;padding:14px 22px 6px;font-family:var(--mono);font-size:12px;color:var(--text-dim);flex:0 0 auto}
+  .statusbar .dots{display:flex;gap:5px;align-items:center}
+  .statusbar .dots span{width:5px;height:5px;border-radius:50%;background:var(--text-dim);opacity:.6}
+  .content{flex:1;overflow:hidden;position:relative;display:flex;flex-direction:column}
+  .scroll{flex:1;overflow-y:auto;padding:6px 18px 24px}
+  .scroll::-webkit-scrollbar{width:0}
+
+  /* ---------- shared UI atoms ---------- */
+  .appbar{display:flex;align-items:center;gap:12px;padding:8px 18px 14px}
+  .appbar .ico{width:38px;height:38px;border-radius:12px;border:1px solid var(--hairline);display:grid;place-items:center;color:var(--text-dim);font-size:17px;background:var(--surface)}
+  .wordmark{font-family:var(--display);font-weight:800;font-size:21px;letter-spacing:-0.02em}
+  .chip{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;font-weight:500;padding:5px 10px;border-radius:999px;border:1px solid var(--hairline)}
+  .chip.iris{background:var(--iris-soft);color:var(--iris);border-color:transparent}
+  .chip.cloud{background:var(--cloud-soft);color:var(--cloud);border-color:transparent}
+  .chip.gold{background:var(--gold-soft);color:var(--gold);border-color:transparent}
+  .chip.solid{background:var(--text);color:var(--bg);border-color:transparent}
+  .pill-btn{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;padding:15px;border-radius:15px;background:var(--iris);color:#fff;font-family:var(--body);font-weight:600;font-size:15px;border:0;box-shadow:0 8px 22px var(--iris-soft)}
+  .ghost-btn{display:flex;align-items:center;justify-content:center;width:100%;padding:13px;border-radius:13px;background:transparent;color:var(--text-dim);font-weight:500;font-size:14px;border:1px solid var(--hairline)}
+  .tertiary{text-align:center;font-size:13px;color:var(--text-dim);padding:10px}
+  .tertiary b{color:var(--iris);font-weight:600}
+  .mono{font-family:var(--mono)}
+  .dim{color:var(--text-dim)}
+  .faint{color:var(--text-faint)}
+
+  /* photo / segmentation */
+  .photo{position:relative;border-radius:20px;overflow:hidden;background:
+     radial-gradient(circle at 50% 38%, color-mix(in srgb,var(--iris) 30%, transparent), transparent 55%),
+     linear-gradient(160deg, var(--elevated), var(--surface));
+     height:300px;display:grid;place-items:center;margin-bottom:14px}
+  .subject{width:130px;height:200px;border-radius:60px 60px 18px 18px;background:
+     linear-gradient(180deg, color-mix(in srgb,var(--text) 22%, transparent), color-mix(in srgb,var(--text) 9%, transparent));
+     position:relative}
+  .subject::after{content:"";position:absolute;inset:0;border-radius:inherit;
+     box-shadow:0 0 0 2px color-mix(in srgb,var(--iris) 70%, transparent);
+     outline:2px dashed var(--iris);outline-offset:4px;
+     animation:dash 1.1s linear infinite}
+  @keyframes dash{to{outline-offset:9px;opacity:.5}}
+  .seg-label{position:absolute;top:14px;left:14px}
+  .scanline{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--iris),transparent);top:30%;animation:scan 2.2s ease-in-out infinite;opacity:.8}
+  @keyframes scan{0%,100%{top:18%}50%{top:78%}}
+  .ocr-callout{position:absolute;right:18px;bottom:64px;display:flex;align-items:center;gap:6px}
+  .ocr-callout .tag{font-family:var(--mono);font-weight:700;font-size:14px;background:var(--text);color:var(--bg);padding:5px 9px;border-radius:8px}
+  .ocr-callout .leader{width:30px;height:1px;background:var(--text);opacity:.5}
+
+  .stream{font-family:var(--mono);font-size:13px;line-height:1.7;color:var(--text);background:var(--surface);border:1px solid var(--hairline);border-radius:14px;padding:13px 15px;margin-bottom:12px}
+  .stream .muted{color:var(--text-faint)}
+  .caret{display:inline-block;width:8px;height:15px;background:var(--iris);vertical-align:-2px;margin-left:2px;animation:blink 1s steps(2) infinite}
+  @keyframes blink{50%{opacity:0}}
+  .status-line{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12px;color:var(--text-dim);padding:9px 2px}
+  .status-line .tick{color:var(--up)}
+  .status-line .run{width:13px;height:13px;border:2px solid var(--hairline-strong);border-top-color:var(--iris);border-radius:50%;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .idblock h3{font-family:var(--display);font-size:23px;font-weight:700;letter-spacing:-0.01em;line-height:1.15;margin-bottom:8px}
+  .tagrow{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px}
+  .conf{height:5px;border-radius:999px;background:var(--hairline);overflow:hidden;margin:8px 0 4px}
+  .conf i{display:block;height:100%;background:linear-gradient(90deg,var(--iris),color-mix(in srgb,var(--iris) 60%, var(--up)))}
+
+  /* market */
+  .market{border:1px solid var(--hairline);border-radius:18px;padding:16px;margin:14px 0;background:var(--surface)}
+  .market .head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}
+  .market .head .lbl{font-size:12px;color:var(--text-dim)}
+  .market .big{font-family:var(--mono);font-weight:700;font-size:28px;letter-spacing:-0.01em}
+  .listing{display:flex;align-items:center;gap:11px;padding:11px 0;border-top:1px solid var(--hairline)}
+  .listing .thumb{width:38px;height:38px;border-radius:9px;background:linear-gradient(150deg,var(--elevated),var(--surface));border:1px solid var(--hairline);flex:0 0 auto}
+  .listing .meta{flex:1;min-width:0}
+  .listing .meta .t{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .listing .meta .s{font-family:var(--mono);font-size:11px;color:var(--text-faint)}
+  .listing .price{font-family:var(--mono);font-weight:700;font-size:15px}
+  .listing .view{font-family:var(--mono);font-size:11px;color:var(--iris);border:1px solid var(--iris-soft);background:var(--iris-soft);padding:5px 9px;border-radius:8px;white-space:nowrap}
+  .fresh{font-family:var(--mono);font-size:11px;color:var(--text-faint);text-align:right;margin-top:10px}
+
+  .owned{display:flex;align-items:center;gap:9px;background:var(--iris-soft);border-radius:12px;padding:11px 13px;font-size:13px;font-weight:500;color:var(--text);margin:12px 0}
+  .owned .n{font-family:var(--mono);color:var(--iris);font-weight:700}
+
+  /* portfolio */
+  .pf-value{padding:8px 2px 14px}
+  .pf-value .big{font-family:var(--display);font-weight:800;font-size:46px;letter-spacing:-0.03em;line-height:1}
+  .pf-value .delta{font-family:var(--mono);font-size:14px;font-weight:500;margin-top:8px;display:flex;align-items:center;gap:8px}
+  .pf-value .delta.up{color:var(--up)}
+  .pf-value .delta .when{color:var(--text-faint)}
+  .spark{margin:10px 0 4px}
+  .sync{font-family:var(--mono);font-size:11px;color:var(--text-faint);display:flex;justify-content:space-between;align-items:center}
+  .sync b{color:var(--iris);font-weight:500}
+  .ai-card{border:1px solid var(--hairline);border-radius:18px;padding:15px 16px;margin:18px 0;background:linear-gradient(150deg,var(--iris-soft),transparent),var(--surface);position:relative}
+  .ai-card .hdr{display:flex;align-items:center;gap:8px;margin-bottom:9px;font-family:var(--mono);font-size:11px;color:var(--iris);font-weight:500;text-transform:uppercase;letter-spacing:.06em}
+  .ai-card p{font-size:14px;line-height:1.6;color:var(--text)}
+  .ai-card p b{font-weight:600}
+  .breakdown{margin-top:14px}
+  .bd-head{font-family:var(--mono);font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.08em;margin:6px 2px 10px}
+  .bd-row{display:flex;align-items:center;gap:12px;padding:13px 2px;border-top:1px solid var(--hairline)}
+  .bd-row .nm{flex:1;font-weight:600;font-size:15px}
+  .bd-row .ct{font-family:var(--mono);font-size:12px;color:var(--text-dim)}
+  .bd-row .vl{font-family:var(--mono);font-weight:700;font-size:14px}
+  .bd-row .car{color:var(--text-faint);font-size:12px;transition:.2s}
+  .bd-sub{padding-left:6px}
+  .bd-sub .bd-row{padding:10px 2px 10px 14px;border-top:1px dashed var(--hairline)}
+  .bd-sub .nm{font-weight:500;font-size:14px;color:var(--text-dim)}
+
+  .fabwrap{position:absolute;right:18px;bottom:18px;display:flex;flex-direction:column;align-items:flex-end;gap:12px;z-index:6}
+  .ask-pill{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--hairline-strong);border-radius:999px;padding:11px 16px;font-weight:600;font-size:13px;box-shadow:var(--shadow)}
+  .ask-pill .d{width:7px;height:7px;border-radius:50%;background:var(--iris);box-shadow:0 0 10px var(--iris)}
+  .fab{width:58px;height:58px;border-radius:20px;background:var(--iris);display:grid;place-items:center;color:#fff;font-size:24px;box-shadow:0 12px 28px var(--iris-soft)}
+
+  /* chat */
+  .sheet-grip{width:38px;height:4px;border-radius:999px;background:var(--hairline-strong);margin:6px auto 14px}
+  .chat-head{display:flex;align-items:center;justify-content:space-between;padding:0 2px 14px}
+  .chat-head .ttl{font-family:var(--display);font-weight:700;font-size:18px}
+  .ragctx{border:1px dashed var(--hairline-strong);border-radius:12px;padding:10px 12px;margin-bottom:14px;background:var(--elevated)}
+  .ragctx .lbl{font-family:var(--mono);font-size:10px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px;display:flex;align-items:center;gap:6px}
+  .ragctx .items{display:flex;gap:6px;flex-wrap:wrap}
+  .ragctx .it{font-family:var(--mono);font-size:11px;color:var(--text-dim);background:var(--surface);border:1px solid var(--hairline);padding:4px 8px;border-radius:7px}
+  .bubble{max-width:84%;padding:12px 14px;border-radius:16px;font-size:14px;line-height:1.55;margin-bottom:12px}
+  .bubble.me{margin-left:auto;background:var(--iris);color:#fff;border-bottom-right-radius:5px}
+  .bubble.ai{background:var(--surface);border:1px solid var(--hairline);border-bottom-left-radius:5px}
+  .bubble.ai .name{font-family:var(--mono);font-size:18px;font-weight:700;color:var(--iris)}
+  .chat-input{display:flex;align-items:center;gap:10px;padding:12px 14px;border-top:1px solid var(--hairline);background:var(--bg)}
+  .chat-input .field{flex:1;background:var(--surface);border:1px solid var(--hairline);border-radius:14px;padding:13px 15px;color:var(--text-faint);font-size:14px}
+  .chat-input .send{width:46px;height:46px;border-radius:13px;background:var(--iris);display:grid;place-items:center;color:#fff;font-size:18px;flex:0 0 auto}
+
+  /* detail chart */
+  .vchart{border:1px solid var(--hairline);border-radius:18px;padding:15px;margin:14px 0;background:var(--surface)}
+  .vchart .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .vchart .top .t{font-size:13px;font-weight:600}
+  .vchart .top .r{font-family:var(--mono);font-size:11px;color:var(--text-faint)}
+
+  /* annotation cards */
+  .acard{background:var(--surface);border:1px solid var(--hairline);border-radius:16px;padding:18px 20px}
+  .acard .num{font-family:var(--mono);font-size:12px;color:var(--iris);font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:9px}
+  .acard .num .tagcap{font-size:10px;color:#fff;background:var(--iris);padding:3px 8px;border-radius:6px;font-weight:500}
+  .acard .num .tagcap.warn{background:var(--gold);color:#1a1626}
+  .acard h4{font-family:var(--display);font-size:16px;font-weight:600;margin-bottom:8px;letter-spacing:-0.01em}
+  .acard p{font-size:13.5px;line-height:1.62;color:var(--text-dim);margin-bottom:9px}
+  .acard p:last-child{margin-bottom:0}
+  .acard p b{color:var(--text);font-weight:600}
+  .acard code{font-family:var(--mono);font-size:12px;background:var(--elevated);padding:2px 6px;border-radius:5px;color:var(--text)}
+  .acard .q{border-left:2px solid var(--gold);padding-left:12px;color:var(--text);font-size:13px}
+  .acard .q b{color:var(--gold)}
+
+  .legend{background:var(--surface);border:1px solid var(--hairline);border-radius:16px;padding:18px 20px;margin-bottom:26px;max-width:760px}
+  .legend h4{font-family:var(--display);font-size:15px;margin-bottom:10px}
+  .legend p{font-size:13.5px;line-height:1.6;color:var(--text-dim)}
+  .legend .ex{font-family:var(--mono);font-size:12px;color:var(--text-faint);margin-top:10px;line-height:1.7}
+
+  /* camera */
+  .cam{position:absolute;inset:0;background:
+     radial-gradient(circle at 50% 42%, color-mix(in srgb,var(--iris) 16%, transparent), transparent 58%),
+     linear-gradient(165deg,#0c0a14,#1a1626);display:flex;flex-direction:column}
+  .cam-top{display:flex;justify-content:flex-start;padding:16px 18px;z-index:3}
+  .cam-x{width:40px;height:40px;border-radius:50%;background:rgba(0,0,0,0.4);backdrop-filter:blur(6px);display:grid;place-items:center;color:#fff;font-size:17px}
+  .cam-stage{flex:1;display:grid;place-items:center;position:relative}
+  .cam-subject{width:120px;height:185px;border-radius:55px 55px 16px 16px;background:linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.05))}
+  .cam-controls{display:flex;align-items:center;justify-content:space-between;padding:0 26px 34px;z-index:3}
+  .barcode-btn{display:flex;flex-direction:column;align-items:center;gap:5px;color:rgba(255,255,255,0.78);font-size:11px;font-family:var(--body);width:74px}
+  .barcode-btn .bx{width:46px;height:46px;border-radius:14px;background:rgba(0,0,0,0.35);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,0.16);display:grid;place-items:center}
+  .barcode-btn .bx svg{display:block}
+  .shutter{width:74px;height:74px;border-radius:50%;border:4px solid rgba(255,255,255,0.9);display:grid;place-items:center}
+  .shutter i{width:58px;height:58px;border-radius:50%;background:#fff}
+  .cam-spacer{width:74px}
+
+  /* onboarding */
+  .ob{flex:1;display:flex;flex-direction:column;padding:0 22px}
+  .ob-hero{padding:60px 4px 18px}
+  .ob-glyph{width:54px;height:54px;border-radius:16px;background:linear-gradient(135deg,var(--iris),color-mix(in srgb,var(--iris) 55%, var(--gold)));display:grid;place-items:center;color:#fff;font-size:28px;box-shadow:0 10px 30px var(--iris-soft);margin-bottom:22px}
+  .ob-hero h1{font-family:var(--display);font-size:34px;font-weight:800;letter-spacing:-0.03em;line-height:1.05;margin-bottom:12px}
+  .ob-hero p{color:var(--text-dim);font-size:15px;line-height:1.55;max-width:280px}
+  .ob-paths{margin-top:auto;padding-bottom:30px;display:flex;flex-direction:column;gap:12px}
+  .path-card{border:1px solid var(--hairline-strong);border-radius:18px;padding:18px;background:var(--surface);display:flex;align-items:center;gap:14px}
+  .path-card .pi{width:44px;height:44px;border-radius:13px;background:var(--iris-soft);display:grid;place-items:center;color:var(--iris);font-size:20px;flex:0 0 auto}
+  .path-card .pt{flex:1}
+  .path-card .pt h3{font-family:var(--display);font-size:17px;font-weight:600;margin-bottom:3px}
+  .path-card .pt p{font-size:12.5px;color:var(--text-dim);line-height:1.4}
+  .path-card .pt .req{font-family:var(--mono);font-size:10px;color:var(--text-faint);margin-top:4px}
+  .path-card .arr{color:var(--text-faint);font-size:18px}
+
+  /* import progress */
+  .imp{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 30px;text-align:center}
+  .imp-ring{width:96px;height:96px;margin-bottom:28px;position:relative}
+  .imp-ring svg{transform:rotate(-90deg)}
+  .imp-ring .pct{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:19px}
+  .imp h2{font-family:var(--display);font-size:22px;font-weight:700;margin-bottom:8px}
+  .imp .count{font-family:var(--mono);font-size:14px;color:var(--iris);margin-bottom:24px}
+  .imp .feed{font-family:var(--mono);font-size:11px;color:var(--text-faint);line-height:1.9;text-align:left;width:100%;max-width:260px;border-top:1px solid var(--hairline);padding-top:14px}
+  .imp .feed .ok{color:var(--up)}
+  .imp .feed .skip{color:var(--gold)}
+  .imp-warn{position:absolute;bottom:26px;left:0;right:0;text-align:center;font-size:12px;color:var(--text-faint);padding:0 30px}
+
+  @media(max-width:560px){
+    .phone{flex:0 0 100%;width:100%}
+    .wrap{padding:24px 16px 0}
+    .chrome{padding:16px}
+  }
+</style>
+</head>
+<body>
+
+<div class="chrome">
+  <div class="chrome-row">
+    <div class="brand"><span class="glyph">✦</span>Arcana <span class="sub">wireframes · conv.4</span></div>
+    <div class="spacer"></div>
+    <div class="toggle">
+      <button id="lt" onclick="setTheme('light')">Light</button>
+      <button id="dk" class="on" onclick="setTheme('dark')">Dark</button>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab on" data-s="cascade" onclick="go('cascade',this)">Capture Review — Cascade <span class="cap">5 capabilities</span></button>
+    <button class="tab" data-s="identified" onclick="go('identified',this)">Capture Review — Result <span class="cap">hybrid · catalog</span></button>
+    <button class="tab" data-s="chat" onclick="go('chat',this)">Ask Arcana <span class="cap">hybrid · RAG</span></button>
+    <button class="tab" data-s="portfolio" onclick="go('portfolio',this)">Portfolio <span class="cap">summarization</span></button>
+    <button class="tab" data-s="detail" onclick="go('detail',this)">Detail <span class="cap">market · writing</span></button>
+    <span style="width:1px;background:var(--hairline);margin:2px 6px"></span>
+    <button class="tab" data-s="camera" onclick="go('camera',this)">Camera <span class="cap">barcode fallback</span></button>
+    <button class="tab" data-s="welcome" onclick="go('welcome',this)">Onboarding <span class="cap">bootstrap</span></button>
+    <button class="tab" data-s="import" onclick="go('import',this)">Import Progress <span class="cap">CSV → Room</span></button>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <div class="legend">
+    <h4>How to read these</h4>
+    <p>Eight frames. The first five are prioritized by how much of Google's <code>ai-samples</code> surface each exercises. The last three — Camera, Onboarding, Import — carry no AI but are load-bearing: they're how a real collection gets into the app, which is the prerequisite for everything the AI screens do. Medium fidelity: enough structure to judge hierarchy, annotations beside each phone for behavior and the capability each region demonstrates. Gold-bordered notes are open questions for the pixel pass. Theme toggle is top-right; both modes are designed, not one derived from the other.</p>
+    <p class="ex">Still excluded — genuinely commodity: Category (browse list), Edit Details (gap-fill form), Settings (status readout). Prose in SCREENS.md covers these; a wireframe wouldn't surface anything new.</p>
+  </div>
+
+  <!-- ============ 1. CASCADE RUNNING ============ -->
+  <section class="screen on" id="s-cascade">
+    <div class="screen-head">
+      <h2>Capture Review — cascade running</h2>
+      <div class="route">capture/review · state: CascadeRunning</div>
+      <p>The single most important frame in the app. The on-device cascade runs visibly on the frozen frame: subject segmentation, on-device classification streaming a guess, OCR pulling the Pop number, catalog lookup, and the on-device→cloud badge. This is "the AI happening in front of you" — the thing that separates Arcana's capture flow from a generic camera app.</p>
+    </div>
+    <div class="stage">
+      <div class="phone"><div class="screenarea">
+        <div class="statusbar"><span>9:41</span><div class="dots"><span></span><span></span><span></span> <span class="mono">5G</span></div></div>
+        <div class="content"><div class="scroll">
+          <div class="appbar" style="padding-left:2px"><div class="ico">✕</div><div class="spacer" style="flex:1"></div><div class="chip iris">● On-device</div></div>
+          <div class="photo">
+            <div class="seg-label"><span class="chip iris">⟡ Segmenting subject</span></div>
+            <div class="scanline"></div>
+            <div class="subject"></div>
+            <div class="ocr-callout"><span class="leader"></span><span class="tag">#001</span></div>
+          </div>
+          <div class="stream">
+            <span class="muted">Gemini Nano · image description</span><br>
+            Marvel character · red and black suit · masked<br>
+            likely <b>Deadpool</b><span class="caret"></span>
+          </div>
+          <div class="status-line"><span class="tick">✓</span> Subject isolated · <span class="mono faint">ML Kit segmentation</span></div>
+          <div class="status-line"><span class="tick">✓</span> Box number read · <span class="mono faint">OCR → #001</span></div>
+          <div class="status-line"><span class="run"></span> Checking your collection… UPCitemdb… eBay…</div>
+          <div style="margin-top:18px;text-align:center" class="mono faint">cascade running · 1.2s elapsed</div>
+        </div></div>
+      </div></div>
+
+      <div class="ann">
+        <div class="acard">
+          <div class="num">STAGE 1 <span class="tagcap">magic-selfie</span></div>
+          <h4>Subject segmentation, on-device</h4>
+          <p>ML Kit Subject Segmentation isolates the Pop from the background. The dashed animated outline + scanline <b>is</b> the visual — designed feedback, not debug spew. Background gets removed for the settled frame.</p>
+          <p class="q"><b>Open:</b> outline timing if segmentation takes &gt;500ms on a busy background. Show a settle animation or hold the raw frame until ready?</p>
+        </div>
+        <div class="acard">
+          <div class="num">STAGE 2 <span class="tagcap">genai-image-description</span></div>
+          <h4>First-pass classification streams live</h4>
+          <p>Gemini Nano streams a description token-by-token via <code>StreamingText</code>. Confidence ≥ 0.85 promotes the guess to a catalog query. The blinking caret signals on-device inference in progress.</p>
+          <p class="q"><b>Open:</b> on cold start this is the 2–5s warm-up. Do we show a distinct "waking up on-device AI" state for first-ever capture, or absorb it into the spinner?</p>
+        </div>
+        <div class="acard">
+          <div class="num">STAGE 3 <span class="tagcap">text-recognition</span></div>
+          <h4>OCR callout on the box</h4>
+          <p>ML Kit Text Recognition reads the Pop number; the <code>#001</code> tag floats near the detected region with a leader line. Mono type — it's machine-read data, and it should look like it.</p>
+        </div>
+        <div class="acard">
+          <div class="num">STAGE 4 + BADGE <span class="tagcap">gemini-hybrid</span></div>
+          <h4>Catalog chain + on-device/cloud badge</h4>
+          <p>Status lines walk the <code>CatalogProvider</code> chain — local → UPCitemdb → eBay → cloud — short-circuiting on first hit. The corner badge reads <b>On-device</b> here; it flips to <span class="chip cloud" style="font-size:10px">Cloud</span> only if the chain falls through to Gemini multimodal.</p>
+          <p class="q"><b>Open:</b> the badge is the portfolio money-shot. Worth a deliberate flip animation when it changes, so a reviewer watching a demo video <i>sees</i> the fallback happen?</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 2. IDENTIFIED ============ -->
+  <section class="screen" id="s-identified">
+    <div class="screen-head">
+      <h2>Capture Review — settled result</h2>
+      <div class="route">capture/review · state: Identified</div>
+      <p>Cascade resolved. Identity, the source-of-identification badge, confidence, and the live market section. Save is always available — even on low confidence the user is in charge. Gap fields are <b>not</b> collected here; that's the Edit Details screen post-save.</p>
+    </div>
+    <div class="stage">
+      <div class="phone"><div class="screenarea">
+        <div class="statusbar"><span>9:41</span><div class="dots"><span></span><span></span><span></span> <span class="mono">5G</span></div></div>
+        <div class="content"><div class="scroll">
+          <div class="appbar" style="padding-left:2px"><div class="ico">✕</div><div class="spacer" style="flex:1"></div><div class="chip iris">✓ Identified on-device</div></div>
+          <div class="photo"><div class="subject" style="opacity:.9"></div></div>
+          <div class="idblock">
+            <h3>Deadpool</h3>
+            <div class="tagrow"><span class="chip">Pop! Marvel</span><span class="chip mono">#001</span><span class="chip">Vaulted</span></div>
+            <div class="dim mono" style="font-size:12px">confidence 0.92</div>
+            <div class="conf"><i style="width:92%"></i></div>
+          </div>
+          <div class="owned"><span class="n">×2</span> You already own two of these</div>
+          <div class="market">
+            <div class="head"><span class="lbl">Median active listing</span><span class="chip mono" style="font-size:10px">eBay Browse</span></div>
+            <div class="big">$24.50</div>
+            <div class="listing"><div class="thumb"></div><div class="meta"><div class="t">Deadpool #001 Pop Vinyl — mint</div><div class="s">seller 99.2% · 4.1k sold</div></div><span class="view">View ↗</span></div>
+            <div class="listing"><div class="thumb"></div><div class="meta"><div class="t">Funko Deadpool 001 w/ protector</div><div class="s">seller 98.7% · 880 sold</div></div><span class="view">View ↗</span></div>
+            <div class="listing"><div class="thumb"></div><div class="meta"><div class="t">Deadpool Pop — loose, no box</div><div class="s">seller 100% · 312 sold</div></div><span class="view">View ↗</span></div>
+            <div class="fresh">listings from 30 seconds ago</div>
+          </div>
+          <div style="height:8px"></div>
+          <button class="pill-btn">Add another to my collection</button>
+          <div class="tertiary">Wrong? <b>Scan barcode</b></div>
+          <div class="ghost-btn">Discard</div>
+        </div></div>
+      </div></div>
+
+      <div class="ann">
+        <div class="acard">
+          <div class="num">SOURCE BADGE <span class="tagcap">gemini-hybrid</span></div>
+          <h4>Where the answer came from</h4>
+          <p>Reads <b>Identified on-device</b> / <b>via eBay catalog</b> / <b>via cloud</b> depending on which provider in the chain resolved. This is the privacy story made visible — on-device is the default path, cloud the exception.</p>
+        </div>
+        <div class="acard">
+          <div class="num">OWNERSHIP</div>
+          <h4>"You already own two of these"</h4>
+          <p>Matched against the local collection (<code>LocalCollectionCatalogProvider</code>). Additive, never a blocker. Primary action becomes <b>Add another</b> — no greyed-out state, the user decides.</p>
+        </div>
+        <div class="acard">
+          <div class="num">MARKET <span class="tagcap">price-provider</span></div>
+          <h4>Same component as Detail</h4>
+          <p><code>MarketSection.kt</code> renders the instant identification settles. eBay Browse gives median active + top listings; it can't see sold prices in v1, so there's no "median sold" line yet — and the UI doesn't pretend there is.</p>
+          <p class="q"><b>Open:</b> three listings vs five on this smaller-context screen? Detail can afford five; Review competes with the Save CTA for the fold.</p>
+        </div>
+        <div class="acard">
+          <div class="num">LOW-CONFIDENCE VARIANT</div>
+          <h4>Same layout, reweighted</h4>
+          <p>Under threshold, the heading becomes "Not sure — this might be Deadpool," the confidence bar drops, and <b>Scan barcode</b> promotes from tertiary link to a secondary button. Save stays available throughout.</p>
+          <p class="q"><b>Open:</b> worth wireframing the low-confidence variant as its own frame in the pixel pass, or is the reweighting rule clear enough in prose?</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 3. CHAT ============ -->
+  <section class="screen" id="s-chat">
+    <div class="screen-head">
+      <h2>Ask Arcana</h2>
+      <div class="route">chat · ModalBottomSheet (not a route)</div>
+      <p>The conversational AI surface. The inference badge is the portfolio artifact — a first-class design element, not a hidden debug toggle. v1 is single-turn hybrid inference; Week 9 makes it RAG over the collection via LiteRT embeddings. The retrieved-context strip shows the grounding working.</p>
+    </div>
+    <div class="stage">
+      <div class="phone"><div class="screenarea">
+        <div class="statusbar"><span>9:41</span><div class="dots"><span></span><span></span><span></span> <span class="mono">5G</span></div></div>
+        <div class="content" style="background:color-mix(in srgb,var(--text) 4%, var(--bg))">
+          <div style="flex:1"></div>
+          <div style="background:var(--bg);border-radius:28px 28px 0 0;border-top:1px solid var(--hairline);padding:14px 18px 0;display:flex;flex-direction:column;height:86%">
+            <div class="sheet-grip"></div>
+            <div class="chat-head"><span class="ttl">Ask Arcana</span><span class="chip iris">● On-device</span></div>
+            <div class="ragctx">
+              <div class="lbl">◆ retrieved from your collection · top 3</div>
+              <div class="items"><span class="it">Daenerys w/ Egg · $690</span><span class="it">Fire Nation Aang · $540</span><span class="it">Daemon Targaryen · $450</span></div>
+            </div>
+            <div class="scroll" style="padding:0;flex:1">
+              <div class="bubble me">what's my most valuable item?</div>
+              <div class="bubble ai">Your most valuable item is <span class="name">Daenerys with Egg</span> at <b>$690</b> — an NFT-redeemable Pop from your 2023 additions. The next three are also NFT redeemables, so a large share of your portfolio value sits in that category<span class="caret"></span></div>
+            </div>
+            <div class="chat-input">
+              <div class="field">Ask about your collection…</div>
+              <div class="send">↑</div>
+            </div>
+          </div>
+        </div>
+      </div></div>
+
+      <div class="ann">
+        <div class="acard">
+          <div class="num">INFERENCE BADGE <span class="tagcap">gemini-hybrid</span></div>
+          <h4>The portfolio money-shot</h4>
+          <p>Shared <code>InferenceBadge.kt</code> with Capture Review. Flips between <span class="chip iris" style="font-size:10px">On-device</span> and <span class="chip cloud" style="font-size:10px">Cloud</span> per <code>InferenceMetadata.executedOn</code> after each response. Always visible, always designed — this is what proves the hybrid story in a 60-second demo.</p>
+        </div>
+        <div class="acard">
+          <div class="num">RAG CONTEXT <span class="tagcap">LiteRT</span></div>
+          <h4>Grounding made visible</h4>
+          <p>Week 9: the query is embedded (LiteRT), top-k items retrieved from the vector store, and serialized into the prompt. Surfacing the retrieved items proves the answer is grounded in <i>this</i> collection, not the model's training data — and it's a strong "look how RAG works" interview artifact.</p>
+          <p class="q"><b>Open:</b> show the context strip always, or only on a "why this answer?" tap? Always-on teaches the mechanism but eats vertical space in the sheet.</p>
+        </div>
+        <div class="acard">
+          <div class="num">STREAMING <span class="tagcap">shared</span></div>
+          <h4>Token-by-token, no flash on settle</h4>
+          <p><code>StreamingText.kt</code> animates <code>InferenceResult.Streaming</code> events; the caret is the same component used in the cascade classification stage. Must transition to final text without a recomposition flicker on <code>Success</code>.</p>
+        </div>
+        <div class="acard">
+          <div class="num">OFFLINE PATH</div>
+          <h4>OnlyOnDevice when there's no network</h4>
+          <p>When <code>ConnectivityManager</code> reports offline, the caller passes <code>RoutingHint.OnlyOnDevice</code> so the service doesn't attempt a cloud call and time out. The badge would simply stay on-device; no error needed for a question the model can answer locally.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 4. PORTFOLIO ============ -->
+  <section class="screen" id="s-portfolio">
+    <div class="screen-head">
+      <h2>Portfolio — home</h2>
+      <div class="route">portfolio · state: Populated</div>
+      <p>The first screen an interviewer sees, so it carries the premium tone. Modelled like an investment app: value first, collection second. Its AI surface is the weekly <code>genai-summarization</code> card — and that card has to say something a number can't, or it's decoration.</p>
+    </div>
+    <div class="stage">
+      <div class="phone"><div class="screenarea">
+        <div class="statusbar"><span>9:41</span><div class="dots"><span></span><span></span><span></span> <span class="mono">5G</span></div></div>
+        <div class="content">
+          <div class="scroll">
+            <div class="appbar" style="padding-left:2px"><div class="wordmark">Arcana</div><div class="spacer" style="flex:1"></div><div class="ico">⚙</div></div>
+            <div class="pf-value">
+              <div class="big">$22,634</div>
+              <div class="delta up">▲ $340 <span class="when">this week</span></div>
+              <div class="spark">
+                <svg width="100%" height="56" viewBox="0 0 320 56" preserveAspectRatio="none">
+                  <polyline points="0,42 40,38 80,40 120,30 160,33 200,22 240,26 280,16 320,12" fill="none" stroke="var(--iris)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <polygon points="0,42 40,38 80,40 120,30 160,33 200,22 240,26 280,16 320,12 320,56 0,56" fill="var(--iris-soft)"/>
+                </svg>
+              </div>
+              <div class="sync"><span>Updated Sunday</span><b>Sync now</b></div>
+            </div>
+            <div class="ai-card">
+              <div class="hdr">◆ This week · on-device summary</div>
+              <p><b>NFT-redeemable Pops drove the move.</b> Daenerys with Egg and the two Daemon Targaryens gained on rising active listings; nothing in your Star Wars series changed. Most of your $22.6k still sits in eight 2023-era items.</p>
+            </div>
+            <div class="breakdown">
+              <div class="bd-head">Collection</div>
+              <div class="bd-row"><div class="nm">Funko Pop</div><div class="ct">283 items</div><div class="vl">$22,634</div><div class="car">▾</div></div>
+              <div class="bd-sub">
+                <div class="bd-row"><div class="nm">Game of Thrones</div><div class="ct">24</div><div class="vl">$4,210</div></div>
+                <div class="bd-row"><div class="nm">Marvel</div><div class="ct">61</div><div class="vl">$3,980</div></div>
+                <div class="bd-row"><div class="nm">Avatar</div><div class="ct">18</div><div class="vl">$3,140</div></div>
+                <div class="bd-row"><div class="nm">Star Wars</div><div class="ct">32</div><div class="vl">$1,820</div></div>
+              </div>
+              <div class="bd-row" style="opacity:.5"><div class="nm">FigPin</div><div class="ct">—</div><div class="vl mono faint">soon</div><div class="car">▸</div></div>
+            </div>
+            <div style="height:60px"></div>
+          </div>
+          <div class="fabwrap">
+            <div class="ask-pill"><span class="d"></span>Ask Arcana</div>
+            <div class="fab">⊕</div>
+          </div>
+        </div>
+      </div></div>
+
+      <div class="ann">
+        <div class="acard">
+          <div class="num">AI SUMMARY <span class="tagcap">genai-summarization</span></div>
+          <h4>The card has to earn its place</h4>
+          <p>This is Portfolio's only real AI surface, so it can't restate the delta number. It should say <i>what moved and why</i> in plain language — which series gained, which didn't, where value concentrates. Generated weekly after sync; ideally on-device.</p>
+          <p class="q"><b>Open:</b> what's the actual input? Summarizing the week's <code>value_snapshots</code> deltas is concrete and on-device-friendly. Confirm the summarization API takes structured deltas well, not just prose.</p>
+        </div>
+        <div class="acard">
+          <div class="num">VALUE-FIRST LAYOUT</div>
+          <h4>Investment app, not toy chest</h4>
+          <p>Big value number in the display face, mono delta, sparkline. The NFT-heavy, volatile collection justifies leading with value over photography — and it reads "serious tool" to a hiring manager in the first second.</p>
+        </div>
+        <div class="acard">
+          <div class="num">SYNC NOW</div>
+          <h4>On-demand path into the weekly worker</h4>
+          <p>Triggers the same <code>SyncAllPrices</code> path as <code>WeeklyPriceSyncWorker</code>. Shows a subtle loader on the delta line and updates in place — no navigation away.</p>
+        </div>
+        <div class="acard">
+          <div class="num">FUTURE CATEGORIES</div>
+          <h4>FigPin row, dimmed</h4>
+          <p>The greyed "soon" row makes the generic-from-day-one architecture legible in the UI — the schema already accommodates it. Small touch, but it shows intent to anyone reviewing the app.</p>
+          <p class="q"><b>Open:</b> ship the dimmed placeholder in v1, or hide empty categories until they exist? Placeholder advertises the roadmap; hiding keeps v1 honest about what works today.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 5. DETAIL ============ -->
+  <section class="screen" id="s-detail">
+    <div class="screen-head">
+      <h2>Detail</h2>
+      <div class="route">detail/{localId} · state: MarketLoaded</div>
+      <p>The canonical single-item view and the landing screen after a capture save. Live market on render, value history from snapshots, and the deliberately-named "Snapshot today's price" action — which commits a history row, distinct from refreshing the always-live market display.</p>
+    </div>
+    <div class="stage">
+      <div class="phone"><div class="screenarea">
+        <div class="statusbar"><span>9:41</span><div class="dots"><span></span><span></span><span></span> <span class="mono">5G</span></div></div>
+        <div class="content"><div class="scroll">
+          <div class="appbar" style="padding-left:2px"><div class="ico">←</div><div class="spacer" style="flex:1"></div><div class="ico">⋯</div></div>
+          <div class="photo" style="height:260px"><div class="subject" style="opacity:.9"></div></div>
+          <div class="idblock">
+            <h3>Daenerys with Egg</h3>
+            <div class="tagrow"><span class="chip">Pop! Game of Thrones</span><span class="chip mono">#92</span><span class="chip gold">⬡ NFT Redemption Pop</span></div>
+          </div>
+          <div class="owned"><span class="n">×1</span> In your collection · added Mar 2023</div>
+          <div class="market">
+            <div class="head"><span class="lbl">Median active listing</span><span class="chip mono" style="font-size:10px">eBay Browse</span></div>
+            <div class="big">$690.00</div>
+            <div class="listing"><div class="thumb"></div><div class="meta"><div class="t">Daenerys w/ Egg — NFT redeemed, mint</div><div class="s">seller 100% · 96 sold</div></div><span class="view">View ↗</span></div>
+            <div class="listing"><div class="thumb"></div><div class="meta"><div class="t">GoT Daenerys Egg Grail w/ protector</div><div class="s">seller 99.4% · 1.2k sold</div></div><span class="view">View ↗</span></div>
+            <div class="fresh">listings from 2 minutes ago</div>
+          </div>
+          <button class="ghost-btn" style="border-color:var(--iris);color:var(--iris)">⊹ Snapshot today's price</button>
+          <div class="vchart">
+            <div class="top"><span class="t">Value history</span><span class="r">90 days</span></div>
+            <svg width="100%" height="90" viewBox="0 0 320 90" preserveAspectRatio="none">
+              <polyline points="0,60 50,58 100,48 150,52 200,36 250,40 300,22 320,20" fill="none" stroke="var(--up)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <polygon points="0,60 50,58 100,48 150,52 200,36 250,40 300,22 320,20 320,90 0,90" fill="rgba(70,198,138,0.12)"/>
+            </svg>
+            <div class="sync" style="margin-top:6px"><span>$540 acquired</span><span>$690 now</span></div>
+          </div>
+          <div class="ghost-btn" style="margin-bottom:10px">✎ Edit details</div>
+          <div class="tertiary dim">Add another · <b style="color:var(--down)">Delete from collection</b></div>
+          <div style="height:14px"></div>
+        </div></div>
+      </div></div>
+
+      <div class="ann">
+        <div class="acard">
+          <div class="num">NFT BADGE</div>
+          <h4>Provenance label, not state</h4>
+          <p>The gold <b>NFT Redemption Pop</b> badge is the one place gold appears — reserved for prestige. It's a catalog fact (<code>isNftRedeemable</code>), purely a display badge. There is no redemption state machine; all these Pops are physical.</p>
+        </div>
+        <div class="acard">
+          <div class="num">SNAPSHOT vs REFRESH</div>
+          <h4>The naming is load-bearing</h4>
+          <p>The market section is already live-on-render, so there's no "Refresh price" button. <b>Snapshot today's price</b> commits a <code>ValueSnapshotEntity</code> to tracked history — a different action. Debounced: same-day within 5% surfaces "Already up to date" instead of a duplicate row.</p>
+        </div>
+        <div class="acard">
+          <div class="num">VALUE HISTORY</div>
+          <h4>Honest about thin data</h4>
+          <p>From <code>value_snapshots</code>, 90-day default. Under two snapshots it reads "Price tracking started — first sync this Sunday" rather than drawing a misleading flat line on an empty axis.</p>
+        </div>
+        <div class="acard">
+          <div class="num">LISTING WRITER <span class="tagcap warn">genai-writing · P2</span></div>
+          <h4>Where the eighth capability lands later</h4>
+          <p>Post-MVP, the overflow menu gains "Draft a listing" — <code>genai-writing-assistance</code> rewrites the item's metadata into sale copy. Not v1, but Detail is its home, which is why it's flagged here rather than drawn.</p>
+          <p class="q"><b>Open:</b> does the listing writer pull condition + market context into the draft, or just identity fields? The former is more useful and exercises more of the data model.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 6. CAMERA ============ -->
+  <section class="screen" id="s-camera">
+    <div class="screen-head">
+      <h2>Camera</h2>
+      <div class="route">capture/camera · state: CameraReady</div>
+      <p>Entry to the capture flow — new acquisitions only, not re-cataloging. The screen's whole job is to capture one frame; the AI runs afterward on Review. The barcode fallback lives here, deliberately understated: it's the demoted path, because the image cascade is the showcase, not barcode scanning.</p>
+    </div>
+    <div class="stage">
+      <div class="phone"><div class="screenarea">
+        <div class="cam">
+          <div class="cam-top"><div class="cam-x">✕</div></div>
+          <div class="cam-stage"><div class="cam-subject"></div></div>
+          <div class="cam-controls">
+            <div class="barcode-btn">
+              <div class="bx">
+                <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                  <g stroke="currentColor" stroke-width="1.6">
+                    <line x1="3" y1="5" x2="3" y2="17"/><line x1="6" y1="5" x2="6" y2="17"/>
+                    <line x1="9" y1="5" x2="9" y2="17"/><line x1="13" y1="5" x2="13" y2="17"/>
+                    <line x1="16" y1="5" x2="16" y2="17"/><line x1="19" y1="5" x2="19" y2="17"/>
+                  </g>
+                </svg>
+              </div>
+              Scan barcode
+            </div>
+            <div class="shutter"><i></i></div>
+            <div class="cam-spacer"></div>
+          </div>
+        </div>
+      </div></div>
+
+      <div class="ann">
+        <div class="acard">
+          <div class="num">BARCODE FALLBACK</div>
+          <h4>Present, deliberately quiet</h4>
+          <p>Bottom-left, low contrast, no badge or pulse. It's always available for users who know they want it, but it never competes with the shutter. This visual weight <b>is</b> the architectural decision — barcode was demoted from a co-equal cascade to a UI fallback so the image-first pipeline stays the star.</p>
+          <p>Tapping it decodes the barcode and jumps the cascade straight to Stage 4 (catalog lookup by UPC), skipping segmentation/classification/OCR.</p>
+        </div>
+        <div class="acard">
+          <div class="num">SHUTTER</div>
+          <h4>Tap to capture, nothing more</h4>
+          <p>Single tap freezes the frame and starts the cascade. Press-and-hold was considered and rejected as over-engineered — there's no second gesture to disambiguate, so a long-press would only add a thing to explain.</p>
+        </div>
+        <div class="acard">
+          <div class="num">NO FRAMING OVERLAY</div>
+          <h4>No "center your Pop here" guidance</h4>
+          <p>The viewfinder stays clean. Framing reticles and instructional text are condescending and unnecessary — the segmentation stage handles messy framing. The absence is a decision, not an omission.</p>
+        </div>
+        <div class="acard">
+          <div class="num">PERMISSION STATE</div>
+          <h4>Denied → rationale, not a dead end</h4>
+          <p>If camera permission is denied: "Arcana needs camera access to identify new items," with <b>Grant permission</b> and <b>Not now</b>. v1 doesn't handle permanent denial in-app — it points the user to system settings.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 7. ONBOARDING WELCOME ============ -->
+  <section class="screen" id="s-welcome">
+    <div class="screen-head">
+      <h2>Onboarding — Welcome</h2>
+      <div class="route">onboarding/welcome · state: Idle · first launch only</div>
+      <p>The fork in the road, and the answer to "how does the collection get in." Two equally weighted paths — neither is the colored primary CTA. Start fresh is free and listed first; importing from HobbyDB is how an established collector bootstraps 283 real items on day one.</p>
+    </div>
+    <div class="stage">
+      <div class="phone"><div class="screenarea">
+        <div class="statusbar"><span>9:41</span><div class="dots"><span></span><span></span><span></span> <span class="mono">5G</span></div></div>
+        <div class="content"><div class="ob">
+          <div class="ob-hero">
+            <div class="ob-glyph">✦</div>
+            <h1>Your collection's arcana, on your device.</h1>
+            <p>Track value, identify new finds, and ask questions about what you own — privately.</p>
+          </div>
+          <div class="ob-paths">
+            <div class="path-card">
+              <div class="pi">＋</div>
+              <div class="pt"><h3>Start fresh</h3><p>Add items by camera as you go.</p></div>
+              <div class="arr">›</div>
+            </div>
+            <div class="path-card">
+              <div class="pi">⇪</div>
+              <div class="pt"><h3>Import from HobbyDB</h3><p>Bring in an existing collection from a CSV export.</p><div class="req">Requires HobbyDB Premium export</div></div>
+              <div class="arr">›</div>
+            </div>
+          </div>
+        </div></div>
+      </div></div>
+
+      <div class="ann">
+        <div class="acard">
+          <div class="num">TWO EQUAL PATHS</div>
+          <h4>Neither is the primary CTA</h4>
+          <p>Both rendered as equal-weight outlined cards — no iris-filled button forcing a choice. <b>Start fresh</b> comes first so the free path isn't buried under a paywall the user may not own. The import label is specific ("from HobbyDB"), not vague ("existing collection").</p>
+        </div>
+        <div class="acard">
+          <div class="num">THE BOOTSTRAP</div>
+          <h4>Why this screen is load-bearing</h4>
+          <p>Import is the only way the 283-item, $22,634 collection lands in the app — which is what makes the portfolio value real, the RAG answers grounded, and the "you already own two" callout possible. No AI here, but everything downstream depends on it.</p>
+        </div>
+        <div class="acard">
+          <div class="num">HOW THE FILE ARRIVES</div>
+          <h4>SAF picker + share intent</h4>
+          <p>Import opens Android's Storage Access Framework (<code>ACTION_OPEN_DOCUMENT</code>) for CSV mime types. Arcana also registers a share-intent filter, so a user can share a CSV email attachment straight into the app.</p>
+          <p class="q"><b>Open:</b> the three-screen "export from HobbyDB" walkthrough — does it appear before the picker, or only if the picker returns nothing? Pre-showing it helps first-timers but adds friction for the prepared.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 8. IMPORT PROGRESS ============ -->
+  <section class="screen" id="s-import">
+    <div class="screen-head">
+      <h2>Onboarding — Import Progress</h2>
+      <div class="route">onboarding/import · state: Writing</div>
+      <p>Where the CSV becomes a collection. <code>HobbyDbCsvImporter</code> parses, <code>CollectibleRepositoryImpl</code> writes to Room. A blocking screen — interrupting a partial import leaves the database inconsistent, so navigation is locked until a terminal state.</p>
+    </div>
+    <div class="stage">
+      <div class="phone"><div class="screenarea">
+        <div class="statusbar"><span>9:41</span><div class="dots"><span></span><span></span><span></span> <span class="mono">5G</span></div></div>
+        <div class="content" style="position:relative"><div class="imp">
+          <div class="imp-ring">
+            <svg width="96" height="96" viewBox="0 0 96 96">
+              <circle cx="48" cy="48" r="42" fill="none" stroke="var(--hairline)" stroke-width="6"/>
+              <circle cx="48" cy="48" r="42" fill="none" stroke="var(--iris)" stroke-width="6" stroke-linecap="round"
+                stroke-dasharray="264" stroke-dashoffset="220"/>
+            </svg>
+            <div class="pct">17%</div>
+          </div>
+          <h2>Adding your collection…</h2>
+          <div class="count">47 of 283 items</div>
+          <div class="feed">
+            <div><span class="ok">✓</span> Daenerys with Egg · $690</div>
+            <div><span class="ok">✓</span> Fire Nation Aang · $540</div>
+            <div><span class="ok">✓</span> Deadpool #001 · ×2</div>
+            <div><span class="skip">⚠</span> Row 51 skipped · missing name</div>
+            <div><span class="ok">✓</span> Daemon Targaryen · $450</div>
+          </div>
+        </div>
+        <div class="imp-warn">Keep Arcana open — closing now stops the import partway.</div>
+        </div>
+      </div></div>
+
+      <div class="ann">
+        <div class="acard">
+          <div class="num">BLOCKS NAVIGATION</div>
+          <h4>No back gesture mid-import</h4>
+          <p>Determinate progress (row index / total) — not a spinner, because the count is knowable and seeing "47 of 283" reassures. Back is disabled during Parsing and Writing; it re-enables only on a terminal state (Complete, PartialComplete, Failed). The copy says why.</p>
+        </div>
+        <div class="acard">
+          <div class="num">THE REAL DATA WORK</div>
+          <h4>This is where the CSV quirks get handled</h4>
+          <p>Behind this bar, <code>HobbyDbCsvImporter</code> strips <code>=HYPERLINK()</code> wrappers, splits comma-separated Series and Production Status into lists, casts UPC to String to keep leading zeros, and flags <code>NFT Redeemable</code>. The integration test asserts 283 rows and 142 NFT items against the real export.</p>
+        </div>
+        <div class="acard">
+          <div class="num">PARTIAL COMPLETE <span class="tagcap warn">edge case</span></div>
+          <h4>Lenient with warnings, user in charge</h4>
+          <p>A bad row logs a warning and is skipped — the rest succeed. The terminal state reads "280 items added, 3 skipped" with <b>Review skipped items</b> and <b>Continue anyway</b>. Strict all-or-nothing is wrong for a personal collection; so is polluting the DB with half-parsed rows.</p>
+          <p class="q"><b>Open:</b> wireframe the Complete and PartialComplete terminal states as their own frames, or is the Writing state plus this rule enough for the pixel pass?</p>
+        </div>
+        <div class="acard">
+          <div class="num">ONE-SHOT</div>
+          <h4>Import and forget</h4>
+          <p>After this, the user is the source of truth. Re-import (Settings → "Import another CSV") is append-only with no merge logic — duplicates are the user's to resolve. Deliberate v1 simplification, not a gap.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  function setTheme(t){
+    document.documentElement.setAttribute('data-theme',t);
+    document.getElementById('lt').classList.toggle('on',t==='light');
+    document.getElementById('dk').classList.toggle('on',t==='dark');
+  }
+  function go(s,el){
+    document.querySelectorAll('.screen').forEach(x=>x.classList.remove('on'));
+    document.getElementById('s-'+s).classList.add('on');
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+    el.classList.add('on');
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+</script>
+</body>
+</html>

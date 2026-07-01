@@ -1,0 +1,23 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+.kotlin/
+
+# Claude local settings (machine-specific)
+.claude/settings.local.json
+
+# Firebase config — excluded by default for a public repo (contains project/app ids + client API key).
+# Remove this line if you want the repo buildable on clone without supplying your own.
+/app/google-services.json
