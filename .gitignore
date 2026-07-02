@@ -15,6 +15,9 @@
 local.properties
 .kotlin/
 
+# Personal notes (interview prep, scratch) — never committed
+/notes/
+
 # Claude local settings (machine-specific)
 .claude/settings.local.json
 
