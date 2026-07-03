@@ -18,6 +18,9 @@ local.properties
 # Personal notes (interview prep, scratch) — never committed
 /notes/
 
+# Raw un-sanitized collection export — kept local; only the sanitized fixture is committed
+seed-data/*.raw.csv
+
 # Claude local settings (machine-specific)
 .claude/settings.local.json
 

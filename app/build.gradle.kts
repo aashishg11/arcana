@@ -36,6 +36,13 @@ android {
     buildFeatures {
         compose = true
     }
+    // The real 283+-item HobbyDB CSV lives in the repo's seed-data/ and is the
+    // integration-test fixture — expose it to instrumented tests as an asset.
+    sourceSets {
+        getByName("androidTest") {
+            assets.srcDirs(files("$projectDir/../seed-data"))
+        }
+    }
 }
 
 dependencies {
@@ -62,6 +69,7 @@ dependencies {
     ksp(libs.androidx.room.compiler)
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
+    implementation(libs.commons.csv)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

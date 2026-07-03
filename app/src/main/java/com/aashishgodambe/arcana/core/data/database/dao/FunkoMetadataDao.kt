@@ -13,4 +13,10 @@ interface FunkoMetadataDao {
 
     @Query("SELECT * FROM funko_metadata WHERE collectibleLocalId = :collectibleId")
     suspend fun getByCollectibleId(collectibleId: Long): FunkoMetadataEntity?
+
+    @Query("SELECT * FROM funko_metadata WHERE upc = :upc LIMIT 1")
+    suspend fun getByUpc(upc: String): FunkoMetadataEntity?
+
+    @Query("SELECT COUNT(*) FROM funko_metadata WHERE isNftRedeemable = 1")
+    suspend fun countNftRedeemable(): Int
 }
