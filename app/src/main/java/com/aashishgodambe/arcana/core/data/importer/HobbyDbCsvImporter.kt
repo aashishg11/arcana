@@ -101,6 +101,7 @@ class HobbyDbCsvImporter @Inject constructor(
             return ImportedItem(
                 sourceId = col("HDBID"),
                 sourceName = SOURCE_NAME,
+                listName = col("List Name").ifBlank { null },
                 category = CollectibleCategory.Funko,
                 name = name,
                 brand = col("Brand"),

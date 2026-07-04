@@ -21,7 +21,10 @@ object DataModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): ArcanaDatabase =
-        Room.databaseBuilder(context, ArcanaDatabase::class.java, "arcana.db").build()
+        Room.databaseBuilder(context, ArcanaDatabase::class.java, "arcana.db")
+            // Week-2 dev convenience: schema still churning, no released data to preserve.
+            .fallbackToDestructiveMigration(dropAllTables = true)
+            .build()
 
     @Provides fun provideCollectibleDao(db: ArcanaDatabase): CollectibleDao = db.collectibleDao()
 

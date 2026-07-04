@@ -1,5 +1,8 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Throwaway spike theme: framework NoActionBar so Compose owns the whole window.
-         Real Material3 theme lands with the UI scaffold on Day 4/5. -->
-    <style name="Theme.Arcana" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Dark-first: window background matches the Arcana bg so there's no light flash before Compose draws. -->
+    <style name="Theme.Arcana" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/arcana_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
 </resources>

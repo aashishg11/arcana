@@ -80,6 +80,7 @@ class ArcanaDatabaseTest {
         origin = CollectibleOrigin.HobbyDbImport,
         sourceId = null,
         sourceName = "HobbyDB",
+        listName = "Test List",
         name = name,
         brand = "Funko",
         imageUrl = null,

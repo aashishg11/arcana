@@ -21,7 +21,7 @@ import com.aashishgodambe.arcana.core.data.database.entity.ValueSnapshotEntity
         CollectibleSeriesCrossRef::class,
         ValueSnapshotEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 @TypeConverters(ArcanaConverters::class)

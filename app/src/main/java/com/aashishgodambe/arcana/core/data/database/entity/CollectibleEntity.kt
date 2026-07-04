@@ -12,6 +12,7 @@ data class CollectibleEntity(
     val origin: CollectibleOrigin,
     val sourceId: String?,
     val sourceName: String?,
+    val listName: String?,
     val name: String,
     val brand: String,
     val imageUrl: String?,

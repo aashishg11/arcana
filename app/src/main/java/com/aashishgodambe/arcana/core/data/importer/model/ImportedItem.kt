@@ -10,6 +10,7 @@ import java.time.LocalDate
 data class ImportedItem(
     val sourceId: String,
     val sourceName: String,
+    val listName: String?,
     val category: CollectibleCategory,
 
     // Common fields

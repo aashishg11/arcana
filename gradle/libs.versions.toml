@@ -11,6 +11,9 @@ room = "2.8.4"
 hilt = "2.59.2"
 testRunner = "1.7.0"
 commonsCsv = "1.12.0"
+navigationCompose = "2.9.8"
+hiltNavigationCompose = "1.4.0-rc01"
+coil = "3.5.0"
 # --- Spike-only (throwaway; deleted Day 5) ---
 composeBom = "2026.06.00"
 activityCompose = "1.12.0"
@@ -45,6 +48,11 @@ hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref
 hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
 androidx-test-runner = { group = "androidx.test", name = "runner", version.ref = "testRunner" }
 commons-csv = { group = "org.apache.commons", name = "commons-csv", version.ref = "commonsCsv" }
+androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
+androidx-hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
+androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycle" }
+coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
+coil-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
