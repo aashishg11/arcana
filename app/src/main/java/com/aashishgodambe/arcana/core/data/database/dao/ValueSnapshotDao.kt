@@ -3,6 +3,7 @@ package com.aashishgodambe.arcana.core.data.database.dao
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
+import com.aashishgodambe.arcana.core.data.database.entity.ListValuePointRow
 import com.aashishgodambe.arcana.core.data.database.entity.PortfolioPointRow
 import com.aashishgodambe.arcana.core.data.database.entity.ValueSnapshotEntity
 import kotlinx.coroutines.flow.Flow
@@ -49,4 +50,21 @@ interface ValueSnapshotDao {
         """,
     )
     fun observePortfolioSeries(): Flow<List<PortfolioPointRow>>
+
+    /**
+     * Per-list value series: for each (HobbyDB list, snapshot instant), the list's total value counting
+     * duplicate copies. Feeds the weekly per-list delta the on-device summary narrates ("Nft funko led,
+     * Star Wars was flat"). Ordered by list then time so the caller can diff consecutive points.
+     */
+    @Query(
+        """
+        SELECT c.listName AS name, vs.snapshotAt AS at, SUM(vs.valueCents * c.quantity) AS totalValueCents
+        FROM value_snapshots vs
+        JOIN collectibles c ON c.localId = vs.collectibleLocalId
+        WHERE c.listName IS NOT NULL AND c.listName != ''
+        GROUP BY c.listName, vs.snapshotAt
+        ORDER BY c.listName, vs.snapshotAt
+        """,
+    )
+    suspend fun listValueSeries(): List<ListValuePointRow>
 }

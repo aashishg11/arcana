@@ -22,6 +22,9 @@ class FakeCollectibleRepository(items: List<Collectible> = emptyList()) : Collec
     private val snapshots = mutableMapOf<Long, MutableList<ValueSnapshot>>()
     var seeded = false
 
+    /** Directly settable per-list series for delta/summary tests (Collectible carries no list name). */
+    var listSeries: Map<String, List<PortfolioPoint>> = emptyMap()
+
     private val sorted get() = byId.values.sortedByDescending { it.estimatedValueCents }
 
     fun snapshotsFor(localId: Long): List<ValueSnapshot> = snapshots[localId].orEmpty().sortedBy { it.at }
@@ -46,6 +49,8 @@ class FakeCollectibleRepository(items: List<Collectible> = emptyList()) : Collec
             .sortedBy { it.at }
         return flowOf(points)
     }
+
+    override suspend fun listValueSeries(): Map<String, List<PortfolioPoint>> = listSeries
 
     override suspend fun latestSnapshot(localId: Long): ValueSnapshot? =
         snapshots[localId]?.maxByOrNull { it.at }

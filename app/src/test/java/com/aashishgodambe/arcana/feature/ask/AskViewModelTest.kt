@@ -125,6 +125,7 @@ class AskViewModelTest {
         override suspend fun allCollectibles(): List<Collectible> = sorted
         override fun observeValueHistory(localId: Long): Flow<List<ValueSnapshot>> = emptyFlow()
         override fun observePortfolioSeries(): Flow<List<PortfolioPoint>> = emptyFlow()
+        override suspend fun listValueSeries(): Map<String, List<PortfolioPoint>> = emptyMap()
         override suspend fun latestSnapshot(localId: Long): ValueSnapshot? = null
         override suspend fun recordSnapshot(
             localId: Long,

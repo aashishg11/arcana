@@ -40,23 +40,32 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.aashishgodambe.arcana.core.ai.model.InferenceLocation
+import com.aashishgodambe.arcana.core.ai.model.InferenceResult
+import com.aashishgodambe.arcana.core.ai.summary.CollectionSummarizer
 import com.aashishgodambe.arcana.core.data.database.entity.CollectionGroup
 import com.aashishgodambe.arcana.core.data.repository.CollectibleRepository
 import com.aashishgodambe.arcana.core.domain.model.PortfolioPoint
+import com.aashishgodambe.arcana.core.domain.usecase.ComputeWeeklyDeltas
 import com.aashishgodambe.arcana.core.domain.usecase.SeedMockHistory
 import com.aashishgodambe.arcana.feature.ask.AskSheet
 import com.aashishgodambe.arcana.ui.component.ChartRange
+import com.aashishgodambe.arcana.ui.component.InferenceBadge
 import com.aashishgodambe.arcana.ui.component.RangeSelector
+import com.aashishgodambe.arcana.ui.component.StreamingText
 import com.aashishgodambe.arcana.ui.component.ValueSparkline
 import com.aashishgodambe.arcana.ui.component.withinRange
 import com.aashishgodambe.arcana.ui.formatUsd
 import com.aashishgodambe.arcana.ui.theme.ArcanaTheme
 import com.aashishgodambe.arcana.ui.theme.Mono
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
@@ -80,10 +89,22 @@ data class PortfolioUiState(
     val hasHistory: Boolean get() = points.size >= 2
 }
 
+/** The on-device "what moved" summary card's state — streams in, then settles with a badge. */
+data class SummaryUiState(
+    val streaming: String? = null,     // partial text while generating
+    val text: String? = null,          // final summary
+    val location: InferenceLocation? = null,
+    val error: String? = null,
+) {
+    val isGenerating: Boolean get() = streaming != null && text == null && error == null
+}
+
 @HiltViewModel
 class PortfolioViewModel @Inject constructor(
     repository: CollectibleRepository,
     seedMockHistory: SeedMockHistory,
+    private val computeWeeklyDeltas: ComputeWeeklyDeltas,
+    private val summarizer: CollectionSummarizer,
 ) : ViewModel() {
     val state: StateFlow<PortfolioUiState> = combine(
         repository.observeTotalValueCents(),
@@ -101,9 +122,30 @@ class PortfolioViewModel @Inject constructor(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PortfolioUiState())
 
+    private val _summary = MutableStateFlow(SummaryUiState())
+    val summary: StateFlow<SummaryUiState> = _summary.asStateFlow()
+
     init {
-        // Back-fill mock weekly history once so the sparkline shows a curve on first open. Idempotent.
-        viewModelScope.launch { seedMockHistory() }
+        // Seed once (idempotent), then generate the weekly summary on-device from the resulting deltas.
+        // On-device inference is foreground-only (Week-2 finding), so this runs on Portfolio load — not
+        // in the background worker.
+        viewModelScope.launch {
+            seedMockHistory()
+            val deltas = computeWeeklyDeltas() ?: return@launch   // thin data → keep the placeholder
+            _summary.update { it.copy(streaming = "") }
+            summarizer.summarize(deltas).collect { result ->
+                when (result) {
+                    is InferenceResult.Streaming ->
+                        _summary.update { it.copy(streaming = result.partialText) }
+                    is InferenceResult.Success ->
+                        _summary.update {
+                            it.copy(text = result.fullText, streaming = null, location = result.metadata.executedOn)
+                        }
+                    is InferenceResult.Error ->
+                        _summary.update { it.copy(error = result.cause.message ?: "Couldn't generate summary", streaming = null) }
+                }
+            }
+        }
     }
 }
 
@@ -115,6 +157,7 @@ fun PortfolioScreen(
 ) {
     val c = ArcanaTheme.colors
     val s by vm.state.collectAsStateWithLifecycle()
+    val summary by vm.summary.collectAsStateWithLifecycle()
     var askOpen by remember { mutableStateOf(false) }
 
     Scaffold(containerColor = c.bg) { padding ->
@@ -185,17 +228,7 @@ fun PortfolioScreen(
 
                 // AI summary card
                 Spacer(Modifier.height(18.dp))
-                Column(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface)
-                        .border(1.dp, c.hairline, RoundedCornerShape(18.dp)).padding(16.dp),
-                ) {
-                    Text("◆ THIS WEEK · ON-DEVICE SUMMARY", fontFamily = Mono, fontSize = 11.sp, color = c.iris, fontWeight = FontWeight.Medium)
-                    Spacer(Modifier.height(9.dp))
-                    Text(
-                        "Your weekly AI summary — what moved and why — is generated on-device once price sync lands (Week 3–4).",
-                        color = c.text, fontSize = 14.sp, lineHeight = 21.sp,
-                    )
-                }
+                SummaryCard(summary)
 
                 // breakdown
                 Spacer(Modifier.height(16.dp))
@@ -269,6 +302,46 @@ fun PortfolioScreen(
             onDismiss = { askOpen = false },
             onItemClick = { id -> askOpen = false; onItemClick(id) },
         )
+    }
+}
+
+/**
+ * The weekly on-device "what moved" card. Streams token-by-token via [StreamingText] and flips the
+ * [InferenceBadge] to on-device/cloud once the answer settles. Falls back to a quiet placeholder before
+ * there's a week of history to compare, or if generation fails.
+ */
+@Composable
+private fun SummaryCard(summary: SummaryUiState) {
+    val c = ArcanaTheme.colors
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface)
+            .border(1.dp, c.hairline, RoundedCornerShape(18.dp)).padding(16.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "◆ THIS WEEK · ON-DEVICE SUMMARY",
+                fontFamily = Mono, fontSize = 11.sp, color = c.iris, fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f),
+            )
+            if (summary.location != null) InferenceBadge(summary.location)
+        }
+        Spacer(Modifier.height(9.dp))
+        when {
+            summary.text != null ->
+                StreamingText(summary.text, streaming = false, color = c.text)
+            summary.streaming != null ->
+                StreamingText(summary.streaming, streaming = true, color = c.text)
+            summary.error != null ->
+                Text(
+                    "Couldn't generate this week's summary on-device — it'll retry after your next sync.",
+                    color = c.textDim, fontSize = 14.sp, lineHeight = 21.sp,
+                )
+            else ->
+                Text(
+                    "Your weekly summary appears here once there's a week of price history to compare.",
+                    color = c.textFaint, fontSize = 14.sp, lineHeight = 21.sp,
+                )
+        }
     }
 }
 

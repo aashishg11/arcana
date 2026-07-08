@@ -42,6 +42,9 @@ interface CollectibleRepository {
     /** Reactive aggregate portfolio value series, oldest first — backs the Portfolio sparkline. */
     fun observePortfolioSeries(): Flow<List<PortfolioPoint>>
 
+    /** Per-list value series (oldest first per list) — feeds the weekly "what moved" delta. */
+    suspend fun listValueSeries(): Map<String, List<PortfolioPoint>>
+
     /** Newest snapshot for an item, or null — the debounce reference for "Snapshot today's price". */
     suspend fun latestSnapshot(localId: Long): ValueSnapshot?
 

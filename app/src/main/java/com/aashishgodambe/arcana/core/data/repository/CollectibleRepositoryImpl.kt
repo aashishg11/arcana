@@ -65,6 +65,11 @@ class CollectibleRepositoryImpl @Inject constructor(
             rows.map { PortfolioPoint(at = it.at, totalValueCents = it.totalValueCents) }
         }
 
+    override suspend fun listValueSeries(): Map<String, List<PortfolioPoint>> =
+        valueSnapshotDao.listValueSeries()
+            .groupBy({ it.name }) { PortfolioPoint(at = it.at, totalValueCents = it.totalValueCents) }
+            .mapValues { (_, points) -> points.sortedBy { it.at } }
+
     override suspend fun latestSnapshot(localId: Long): ValueSnapshot? =
         valueSnapshotDao.latestForCollectible(localId)?.toDomain()
 
