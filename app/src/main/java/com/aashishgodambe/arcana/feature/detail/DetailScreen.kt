@@ -24,6 +24,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,18 +44,29 @@ import coil3.compose.AsyncImage
 import com.aashishgodambe.arcana.core.data.repository.CollectibleRepository
 import com.aashishgodambe.arcana.core.domain.model.Collectible
 import com.aashishgodambe.arcana.core.domain.model.FunkoPop
+import com.aashishgodambe.arcana.core.domain.model.ValueSnapshot
+import com.aashishgodambe.arcana.core.domain.model.currentValueCents
 import com.aashishgodambe.arcana.ui.component.ArcanaChip
+import com.aashishgodambe.arcana.ui.component.ChartRange
 import com.aashishgodambe.arcana.ui.component.ChipStyle
 import com.aashishgodambe.arcana.ui.component.GhostButton
 import com.aashishgodambe.arcana.ui.component.PlaceholderCard
+import com.aashishgodambe.arcana.ui.component.RangeSelector
+import com.aashishgodambe.arcana.ui.component.ValueSparkline
+import com.aashishgodambe.arcana.ui.component.withinRange
 import com.aashishgodambe.arcana.ui.formatUsd
 import com.aashishgodambe.arcana.ui.theme.ArcanaTheme
 import com.aashishgodambe.arcana.ui.theme.Mono
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.Duration
+import java.time.Instant
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
@@ -64,24 +79,30 @@ class DetailViewModel @Inject constructor(
     private val _collectible = MutableStateFlow<Collectible?>(null)
     val collectible: StateFlow<Collectible?> = _collectible.asStateFlow()
 
+    /** Per-item value history over the default 90-day window, oldest first — backs the Detail chart. */
+    val history: StateFlow<List<ValueSnapshot>> = repository.observeValueHistory(localId)
+        .map { snaps -> val cutoff = Instant.now().minus(Duration.ofDays(90)); snaps.filter { it.at >= cutoff } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     init { viewModelScope.launch { _collectible.value = repository.getById(localId) } }
 }
 
 @Composable
 fun DetailScreen(onBack: () -> Unit, vm: DetailViewModel = hiltViewModel()) {
     val collectible by vm.collectible.collectAsStateWithLifecycle()
+    val history by vm.history.collectAsStateWithLifecycle()
     // Dispatch through the sealed domain type — adding FigPin/PokemonCard later breaks this `when`.
     when (val item = collectible) {
         null -> Box(Modifier.fillMaxSize().background(ArcanaTheme.colors.bg), contentAlignment = Alignment.Center) {
             Text("Loading…", color = ArcanaTheme.colors.textDim)
         }
-        is FunkoPop -> FunkoDetail(item, onBack)
+        is FunkoPop -> FunkoDetail(item, history, onBack)
     }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun FunkoDetail(pop: FunkoPop, onBack: () -> Unit) {
+private fun FunkoDetail(pop: FunkoPop, history: List<ValueSnapshot>, onBack: () -> Unit) {
     val c = ArcanaTheme.colors
     Scaffold(containerColor = c.bg) { padding ->
         Column(
@@ -110,12 +131,12 @@ private fun FunkoDetail(pop: FunkoPop, onBack: () -> Unit) {
                 Text("In your collection · added ${pop.dateAdded.format(MONTH_YEAR)}", color = c.text, fontSize = 13.sp)
             }
             Column {
-                Text(formatUsd(pop.estimatedValueCents), style = MaterialTheme.typography.displayLarge.copy(fontSize = 34.sp), color = c.text)
+                Text(formatUsd(pop.currentValueCents), style = MaterialTheme.typography.displayLarge.copy(fontSize = 34.sp), color = c.text)
                 pop.exclusiveTo?.let { Text("Exclusive · $it", fontFamily = Mono, fontSize = 11.sp, color = c.textDim) }
             }
-            PlaceholderCard("Median active listing", "Live eBay market — median active price + top listings — lands in Week 3.", "eBay Browse")
+            PlaceholderCard("Median active listing", "Live eBay market — median active price + top listings — lands next.", "eBay Browse")
             GhostButton("⊹ Snapshot today's price", onClick = {}, accent = true)
-            PlaceholderCard("Value history", "Tracking started — the 90-day chart fills in after the first weekly price sync.", "90 days")
+            ValueHistoryCard(history)
             GhostButton("✎ Edit details", onClick = {})
             Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                 Text("Add another", color = c.textDim, fontSize = 13.sp)
@@ -123,6 +144,45 @@ private fun FunkoDetail(pop: FunkoPop, onBack: () -> Unit) {
                 Text("Delete from collection", color = c.down, fontSize = 13.sp)
             }
             Spacer(Modifier.height(14.dp))
+        }
+    }
+}
+
+/**
+ * Per-item value history over the 90-day default. Renders the real snapshot series once there are two
+ * points; below that, an honest "tracking started" state rather than a flat line on an empty axis.
+ */
+@Composable
+private fun ValueHistoryCard(history: List<ValueSnapshot>) {
+    val c = ArcanaTheme.colors
+    if (history.size < 2) {
+        PlaceholderCard(
+            "Value history",
+            "Price tracking started — first sync this Sunday. The chart fills in as snapshots accrue.",
+            "90 days",
+        )
+        return
+    }
+    var range by rememberSaveable { mutableStateOf(ChartRange.Days90) }
+    val values = remember(history, range) { history.withinRange(range) { it.at }.map { it.valueCents } }
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface)
+            .border(1.dp, c.hairline, RoundedCornerShape(18.dp)).padding(15.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("Value history", color = c.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            RangeSelector(selected = range, onSelect = { range = it })
+        }
+        ValueSparkline(
+            values = values,
+            lineColor = c.up,
+            fillColor = c.up.copy(alpha = 0.12f),
+            modifier = Modifier.fillMaxWidth().height(90.dp),
+        )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("${formatUsd(values.first())} tracked", color = c.textDim, fontFamily = Mono, fontSize = 11.sp)
+            Text("${formatUsd(values.last())} now", color = c.textDim, fontFamily = Mono, fontSize = 11.sp)
         }
     }
 }

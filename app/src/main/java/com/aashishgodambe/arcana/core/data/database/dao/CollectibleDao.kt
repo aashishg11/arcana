@@ -8,7 +8,9 @@ import com.aashishgodambe.arcana.core.data.database.entity.CollectibleEntity
 import com.aashishgodambe.arcana.core.data.database.entity.CollectibleWithDetails
 import com.aashishgodambe.arcana.core.data.database.entity.CollectibleWithSeries
 import com.aashishgodambe.arcana.core.data.database.entity.CollectionGroup
+import com.aashishgodambe.arcana.core.data.database.entity.ValueSource
 import kotlinx.coroutines.flow.Flow
+import java.time.Instant
 
 @Dao
 interface CollectibleDao {
@@ -19,12 +21,24 @@ interface CollectibleDao {
     @Query("SELECT * FROM collectibles")
     fun getAll(): Flow<List<CollectibleEntity>>
 
+    /** One-shot count for the seed guard (avoids observing). */
+    @Query("SELECT COUNT(*) FROM collectibles")
+    suspend fun count(): Int
+
+    /** Updates the cached "current" value after a price snapshot; drives the delta line and headline. */
+    @Query(
+        "UPDATE collectibles SET lastKnownValueCents = :cents, lastKnownValueSource = :source, " +
+            "lastKnownValueAt = :at WHERE localId = :id",
+    )
+    suspend fun updateLastKnownValue(id: Long, cents: Int, source: ValueSource, at: Instant)
+
     @Query("SELECT COUNT(*) FROM collectibles")
     fun observeCount(): Flow<Int>
 
     // Value counts every copy: an item held in quantity N contributes N × its unit value, so the
-    // total matches HobbyDB's "incl. duplicates" figure rather than a per-entry sum.
-    @Query("SELECT COALESCE(SUM(estimatedValueCents * quantity), 0) FROM collectibles")
+    // total matches HobbyDB's "incl. duplicates" figure rather than a per-entry sum. Uses the tracked
+    // current value (lastKnownValueCents) when price sync has set it, falling back to the import estimate.
+    @Query("SELECT COALESCE(SUM(COALESCE(lastKnownValueCents, estimatedValueCents) * quantity), 0) FROM collectibles")
     fun observeTotalValueCents(): Flow<Int>
 
     /** Total copies incl. duplicates (Σ quantity) — HobbyDB's "Collectible Entries (incl. Duplicates)". */
@@ -33,7 +47,8 @@ interface CollectibleDao {
 
     @Query(
         """
-        SELECT listName AS name, COUNT(*) AS itemCount, COALESCE(SUM(estimatedValueCents * quantity), 0) AS valueCents
+        SELECT listName AS name, COUNT(*) AS itemCount,
+               COALESCE(SUM(COALESCE(lastKnownValueCents, estimatedValueCents) * quantity), 0) AS valueCents
         FROM collectibles
         WHERE listName IS NOT NULL AND listName != ''
         GROUP BY listName

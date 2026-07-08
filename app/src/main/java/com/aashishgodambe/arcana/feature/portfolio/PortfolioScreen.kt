@@ -42,7 +42,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.aashishgodambe.arcana.core.data.database.entity.CollectionGroup
 import com.aashishgodambe.arcana.core.data.repository.CollectibleRepository
+import com.aashishgodambe.arcana.core.domain.model.PortfolioPoint
+import com.aashishgodambe.arcana.core.domain.usecase.SeedMockHistory
 import com.aashishgodambe.arcana.feature.ask.AskSheet
+import com.aashishgodambe.arcana.ui.component.ChartRange
+import com.aashishgodambe.arcana.ui.component.RangeSelector
+import com.aashishgodambe.arcana.ui.component.ValueSparkline
+import com.aashishgodambe.arcana.ui.component.withinRange
 import com.aashishgodambe.arcana.ui.formatUsd
 import com.aashishgodambe.arcana.ui.theme.ArcanaTheme
 import com.aashishgodambe.arcana.ui.theme.Mono
@@ -51,25 +57,54 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import kotlin.math.abs
 import javax.inject.Inject
 
 data class PortfolioUiState(
-    val totalValueCents: Int = 0,
-    val itemCount: Int = 0,       // unique entries
-    val copyCount: Int = 0,       // entries incl. duplicates (Σ quantity)
+    val totalValueCents: Int = 0,      // tracked current value (COALESCE(lastKnown, estimate) × qty)
+    val itemCount: Int = 0,            // unique entries
+    val copyCount: Int = 0,            // entries incl. duplicates (Σ quantity)
     val topGroups: List<CollectionGroup> = emptyList(),
-)
+    val points: List<PortfolioPoint> = emptyList(),   // aggregate totals, oldest → newest
+) {
+    /** Week-over-week change, or null when there aren't yet two points to compare. */
+    val weekDeltaCents: Int?
+        get() = if (points.size >= 2) points.last().totalValueCents - points[points.size - 2].totalValueCents else null
+
+    val lastSyncedAt: Instant? get() = points.lastOrNull()?.at
+
+    val hasHistory: Boolean get() = points.size >= 2
+}
 
 @HiltViewModel
-class PortfolioViewModel @Inject constructor(repository: CollectibleRepository) : ViewModel() {
+class PortfolioViewModel @Inject constructor(
+    repository: CollectibleRepository,
+    seedMockHistory: SeedMockHistory,
+) : ViewModel() {
     val state: StateFlow<PortfolioUiState> = combine(
         repository.observeTotalValueCents(),
         repository.observeCount(),
         repository.observeListBreakdown(),
         repository.observeCopyCount(),
-    ) { value, count, groups, copies ->
-        PortfolioUiState(value, count, copies, groups.take(8))
+        repository.observePortfolioSeries(),
+    ) { value, count, groups, copies, points ->
+        PortfolioUiState(
+            totalValueCents = value,
+            itemCount = count,
+            copyCount = copies,
+            topGroups = groups.take(8),
+            points = points,
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PortfolioUiState())
+
+    init {
+        // Back-fill mock weekly history once so the sparkline shows a curve on first open. Idempotent.
+        viewModelScope.launch { seedMockHistory() }
+    }
 }
 
 @Composable
@@ -97,22 +132,54 @@ fun PortfolioScreen(
                 // value
                 Spacer(Modifier.height(6.dp))
                 Text(formatUsd(s.totalValueCents), style = MaterialTheme.typography.displayLarge, color = c.text)
-                Spacer(Modifier.height(12.dp))
-                // Value sparkline placeholder — the real chart needs a value time-series (Week 3-4 price sync).
-                Box(
-                    Modifier.fillMaxWidth().height(60.dp).clip(RoundedCornerShape(14.dp))
-                        .background(c.surface).border(1.dp, c.hairline, RoundedCornerShape(14.dp)),
-                    contentAlignment = Alignment.Center,
-                ) {
+
+                // week-over-week delta
+                s.weekDeltaCents?.let { delta ->
+                    Spacer(Modifier.height(8.dp))
+                    val up = delta >= 0
                     Text(
-                        "Value history — the sparkline fills in after your first weekly price sync",
-                        fontFamily = Mono, fontSize = 10.sp, color = c.textFaint,
-                        textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 16.dp),
+                        "${if (up) "▲" else "▼"} ${formatUsd(abs(delta))}  this week",
+                        fontFamily = Mono, fontSize = 14.sp, fontWeight = FontWeight.Medium,
+                        color = if (up) c.up else c.down,
                     )
+                }
+
+                Spacer(Modifier.height(12.dp))
+                if (s.hasHistory) {
+                    var range by rememberSaveable { mutableStateOf(ChartRange.Days90) }
+                    val values = remember(s.points, range) {
+                        s.points.withinRange(range) { it.at }.map { it.totalValueCents }
+                    }
+                    Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.End) {
+                        RangeSelector(selected = range, onSelect = { range = it })
+                    }
+                    ValueSparkline(
+                        values = values,
+                        lineColor = c.iris,
+                        fillColor = c.irisSoft,
+                        modifier = Modifier.fillMaxWidth().height(60.dp),
+                    )
+                } else {
+                    // Honest thin-data state — no misleading flat line on an empty axis.
+                    Box(
+                        Modifier.fillMaxWidth().height(60.dp).clip(RoundedCornerShape(14.dp))
+                            .background(c.surface).border(1.dp, c.hairline, RoundedCornerShape(14.dp)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            "Price tracking started — the sparkline fills in as snapshots accrue",
+                            fontFamily = Mono, fontSize = 10.sp, color = c.textFaint,
+                            textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 16.dp),
+                        )
+                    }
                 }
                 Spacer(Modifier.height(10.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Not synced yet", fontFamily = Mono, fontSize = 11.sp, color = c.textFaint)
+                    Text(
+                        s.lastSyncedAt?.let { "Updated ${it.atZone(ZoneId.systemDefault()).format(SYNC_DAY)}" }
+                            ?: "Not synced yet",
+                        fontFamily = Mono, fontSize = 11.sp, color = c.textFaint,
+                    )
                     Text("Sync now", fontFamily = Mono, fontSize = 11.sp, color = c.iris)
                 }
 
@@ -234,6 +301,8 @@ private fun StatRow(label: String, value: String, emphasize: Boolean = false) {
         )
     }
 }
+
+private val SYNC_DAY = DateTimeFormatter.ofPattern("EEEE")
 
 @Composable
 private fun GroupRow(group: CollectionGroup, onClick: () -> Unit) {

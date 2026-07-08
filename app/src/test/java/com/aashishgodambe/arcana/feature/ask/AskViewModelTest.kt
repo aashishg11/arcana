@@ -4,10 +4,15 @@ import app.cash.turbine.test
 import com.aashishgodambe.arcana.core.ai.FakeGeminiService
 import com.aashishgodambe.arcana.core.ai.model.InferenceLocation
 import com.aashishgodambe.arcana.core.data.database.entity.CollectionGroup
+import com.aashishgodambe.arcana.core.data.database.entity.SnapshotTrigger
+import com.aashishgodambe.arcana.core.data.database.entity.ValueSource
 import com.aashishgodambe.arcana.core.data.importer.model.ImportedItem
 import com.aashishgodambe.arcana.core.data.repository.CollectibleRepository
 import com.aashishgodambe.arcana.core.domain.model.Collectible
 import com.aashishgodambe.arcana.core.domain.model.FunkoPop
+import com.aashishgodambe.arcana.core.domain.model.PortfolioPoint
+import com.aashishgodambe.arcana.core.domain.model.ValueSnapshot
+import java.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -117,6 +122,19 @@ class AskViewModelTest {
         override fun observeCopyCount(): Flow<Int> = emptyFlow()
         override fun observeListBreakdown(): Flow<List<CollectionGroup>> = emptyFlow()
         override suspend fun getById(localId: Long): Collectible? = null
+        override suspend fun allCollectibles(): List<Collectible> = sorted
+        override fun observeValueHistory(localId: Long): Flow<List<ValueSnapshot>> = emptyFlow()
+        override fun observePortfolioSeries(): Flow<List<PortfolioPoint>> = emptyFlow()
+        override suspend fun latestSnapshot(localId: Long): ValueSnapshot? = null
+        override suspend fun recordSnapshot(
+            localId: Long,
+            valueCents: Int,
+            source: ValueSource,
+            trigger: SnapshotTrigger,
+            at: Instant,
+        ) = Unit
+        override suspend fun isHistorySeeded(): Boolean = true
+        override suspend fun replaceHistories(histories: Map<Long, List<ValueSnapshot>>) = Unit
         override suspend fun importFrom(
             items: List<ImportedItem>,
             onProgress: (written: Int, item: ImportedItem) -> Unit,

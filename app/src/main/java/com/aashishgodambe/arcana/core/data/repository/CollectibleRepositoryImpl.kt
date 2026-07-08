@@ -20,7 +20,10 @@ import com.aashishgodambe.arcana.core.data.importer.model.FunkoImportMetadata
 import com.aashishgodambe.arcana.core.data.importer.model.ImportedItem
 import com.aashishgodambe.arcana.core.domain.model.Collectible
 import com.aashishgodambe.arcana.core.domain.model.FunkoPop
+import com.aashishgodambe.arcana.core.domain.model.PortfolioPoint
+import com.aashishgodambe.arcana.core.domain.model.ValueSnapshot
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.time.Instant
 import java.time.LocalDate
@@ -50,6 +53,62 @@ class CollectibleRepositoryImpl @Inject constructor(
 
     override suspend fun getById(localId: Long): Collectible? =
         collectibleDao.getWithDetails(localId)?.toDomain()
+
+    override suspend fun allCollectibles(): List<Collectible> =
+        collectibleDao.observeAllWithDetails().first().mapNotNull { it.toDomain() }
+
+    override fun observeValueHistory(localId: Long): Flow<List<ValueSnapshot>> =
+        valueSnapshotDao.observeForCollectible(localId).map { rows -> rows.map { it.toDomain() } }
+
+    override fun observePortfolioSeries(): Flow<List<PortfolioPoint>> =
+        valueSnapshotDao.observePortfolioSeries().map { rows ->
+            rows.map { PortfolioPoint(at = it.at, totalValueCents = it.totalValueCents) }
+        }
+
+    override suspend fun latestSnapshot(localId: Long): ValueSnapshot? =
+        valueSnapshotDao.latestForCollectible(localId)?.toDomain()
+
+    override suspend fun recordSnapshot(
+        localId: Long,
+        valueCents: Int,
+        source: ValueSource,
+        trigger: SnapshotTrigger,
+        at: Instant,
+    ) = db.withTransaction {
+        valueSnapshotDao.insert(
+            ValueSnapshotEntity(
+                collectibleLocalId = localId,
+                valueCents = valueCents,
+                source = source,
+                trigger = trigger,
+                snapshotAt = at,
+            ),
+        )
+        collectibleDao.updateLastKnownValue(localId, valueCents, source, at)
+    }
+
+    override suspend fun isHistorySeeded(): Boolean =
+        valueSnapshotDao.totalCount() > collectibleDao.count()
+
+    override suspend fun replaceHistories(histories: Map<Long, List<ValueSnapshot>>) = db.withTransaction {
+        for ((localId, points) in histories) {
+            if (points.isEmpty()) continue
+            valueSnapshotDao.deleteForCollectible(localId)
+            valueSnapshotDao.insertAll(
+                points.map {
+                    ValueSnapshotEntity(
+                        collectibleLocalId = localId,
+                        valueCents = it.valueCents,
+                        source = it.source,
+                        trigger = it.trigger,
+                        snapshotAt = it.at,
+                    )
+                },
+            )
+            val newest = points.maxBy { it.at }
+            collectibleDao.updateLastKnownValue(localId, newest.valueCents, newest.source, newest.at)
+        }
+    }
 
     override suspend fun getMostValuable(limit: Int): List<Collectible> =
         collectibleDao.getMostValuableWithDetails(limit).mapNotNull { it.toDomain() }
@@ -175,6 +234,13 @@ private fun CollectibleWithDetails.toDomain(): Collectible? = when (collectible.
     // v1 ships Funko only; FigPin/Pokemon are documented holes.
     CollectibleCategory.FigPin, CollectibleCategory.Pokemon -> null
 }
+
+private fun ValueSnapshotEntity.toDomain() = ValueSnapshot(
+    valueCents = valueCents,
+    at = snapshotAt,
+    source = source,
+    trigger = trigger,
+)
 
 private fun FunkoImportMetadata.toEntity(localId: Long) = FunkoMetadataEntity(
     collectibleLocalId = localId,

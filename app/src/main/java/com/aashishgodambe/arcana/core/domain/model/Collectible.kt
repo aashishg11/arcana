@@ -46,3 +46,10 @@ data class FunkoPop(
 ) : Collectible
 
 // Future: data class FigPin(...) : Collectible / data class PokemonCard(...) : Collectible
+
+/**
+ * The value to display *now*: the latest tracked value if price sync has run, else the import estimate.
+ * Every value surface (portfolio total, per-list rollup, item row, detail) reads this, so the numbers
+ * agree and all move together with sync. Totals still multiply by quantity for duplicate-aware sums.
+ */
+val Collectible.currentValueCents: Int get() = lastKnownValueCents ?: estimatedValueCents
