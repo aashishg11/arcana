@@ -31,8 +31,8 @@ AGP 9.2.0 (built-in Kotlin 2.2.10) · Gradle 9.4.1 · compileSdk 37 · minSdk 29
 ## Commits (personal repo — public-headed)
 
 - Git identity is **personal** and repo-local: `Aashish Godambe` / `12780079+aashishg11@users.noreply.github.com` — NOT the work account.
-- **No "Day N" prefix** — describe the change. Concise subject + bullet body. End with:
-  `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`
+- **No "Day N" prefix** — describe the change. Concise subject + bullet body.
+- **No `Co-Authored-By` trailer** — do not add the Claude co-author line to commit messages.
 - Commit/push only when asked.
 
 ## Never commit (gitignored — keep it that way)
