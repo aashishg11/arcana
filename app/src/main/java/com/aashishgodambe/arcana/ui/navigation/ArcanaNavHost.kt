@@ -67,7 +67,10 @@ fun ArcanaNavHost() {
             )
         }
         composable(Routes.PORTFOLIO) {
-            PortfolioScreen(onGroupClick = { name -> nav.navigate(Routes.category(name)) })
+            PortfolioScreen(
+                onGroupClick = { name -> nav.navigate(Routes.category(name)) },
+                onItemClick = { id -> nav.navigate(Routes.detail(id)) },
+            )
         }
         composable(Routes.CATEGORY, arguments = listOf(navArgument("list") { type = NavType.StringType })) {
             CategoryScreen(

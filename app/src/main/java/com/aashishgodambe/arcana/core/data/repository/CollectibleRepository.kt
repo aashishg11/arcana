@@ -16,14 +16,27 @@ interface CollectibleRepository {
     /** Lightweight count for start-destination routing (avoids loading the whole collection). */
     fun observeCount(): Flow<Int>
 
-    /** Total estimated value of the whole collection, in cents. */
+    /** Total estimated value of the whole collection, in cents (counts duplicate copies). */
     fun observeTotalValueCents(): Flow<Int>
+
+    /** Total copies including duplicates (Σ quantity). */
+    fun observeCopyCount(): Flow<Int>
 
     /** Per-list rollup (count + value), most valuable first, for the Portfolio breakdown. */
     fun observeListBreakdown(): Flow<List<CollectionGroup>>
 
     /** A single collectible as a domain model, or null if not found. */
     suspend fun getById(localId: Long): Collectible?
+
+    /** The [limit] most valuable collectibles as domain models, for grounding AI answers. */
+    suspend fun getMostValuable(limit: Int): List<Collectible>
+
+    /**
+     * Keyword search over name/brand/list/series for the given free-text [query], most valuable
+     * first, for grounding AI answers on the relevant subset. Returns empty when the query has no
+     * salient terms.
+     */
+    suspend fun search(query: String, limit: Int): List<Collectible>
 
     /**
      * Persists imported items: each becomes a collectible row + (for Funko) a metadata row +

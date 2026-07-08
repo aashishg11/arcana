@@ -22,12 +22,18 @@ interface CollectibleDao {
     @Query("SELECT COUNT(*) FROM collectibles")
     fun observeCount(): Flow<Int>
 
-    @Query("SELECT COALESCE(SUM(estimatedValueCents), 0) FROM collectibles")
+    // Value counts every copy: an item held in quantity N contributes N × its unit value, so the
+    // total matches HobbyDB's "incl. duplicates" figure rather than a per-entry sum.
+    @Query("SELECT COALESCE(SUM(estimatedValueCents * quantity), 0) FROM collectibles")
     fun observeTotalValueCents(): Flow<Int>
+
+    /** Total copies incl. duplicates (Σ quantity) — HobbyDB's "Collectible Entries (incl. Duplicates)". */
+    @Query("SELECT COALESCE(SUM(quantity), 0) FROM collectibles")
+    fun observeCopyCount(): Flow<Int>
 
     @Query(
         """
-        SELECT listName AS name, COUNT(*) AS itemCount, COALESCE(SUM(estimatedValueCents), 0) AS valueCents
+        SELECT listName AS name, COUNT(*) AS itemCount, COALESCE(SUM(estimatedValueCents * quantity), 0) AS valueCents
         FROM collectibles
         WHERE listName IS NOT NULL AND listName != ''
         GROUP BY listName
@@ -45,6 +51,28 @@ interface CollectibleDao {
 
     @Query("SELECT * FROM collectibles ORDER BY estimatedValueCents DESC LIMIT :limit")
     suspend fun getMostValuable(limit: Int): List<CollectibleEntity>
+
+    @Transaction
+    @Query("SELECT * FROM collectibles ORDER BY estimatedValueCents DESC LIMIT :limit")
+    suspend fun getMostValuableWithDetails(limit: Int): List<CollectibleWithDetails>
+
+    /**
+     * Keyword search across name, brand, list name, and series (joined), most valuable first.
+     * [like] is a full LIKE pattern (e.g. "%avatar%"). Grounds AI answers on the *relevant* subset
+     * of the collection rather than only the most valuable items.
+     */
+    @Transaction
+    @Query(
+        """
+        SELECT DISTINCT c.* FROM collectibles c
+        LEFT JOIN collectible_series x ON x.collectibleLocalId = c.localId
+        LEFT JOIN series s ON s.id = x.seriesId
+        WHERE c.name LIKE :like OR c.brand LIKE :like OR c.listName LIKE :like OR s.name LIKE :like
+        ORDER BY c.estimatedValueCents DESC
+        LIMIT :limit
+        """,
+    )
+    suspend fun searchWithDetails(like: String, limit: Int): List<CollectibleWithDetails>
 
     @Transaction
     @Query("SELECT * FROM collectibles WHERE localId = :id")

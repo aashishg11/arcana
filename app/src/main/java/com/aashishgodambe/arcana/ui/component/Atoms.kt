@@ -80,6 +80,21 @@ fun GhostButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier
     }
 }
 
+/** A subtle "×N" pill marking an entry held in multiple copies. Renders nothing for a single copy. */
+@Composable
+fun QuantityBadge(quantity: Int, modifier: Modifier = Modifier) {
+    if (quantity <= 1) return
+    val c = ArcanaTheme.colors
+    Text(
+        "×$quantity",
+        fontFamily = Mono, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = c.iris,
+        modifier = modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(c.irisSoft)
+            .padding(horizontal = 7.dp, vertical = 3.dp),
+    )
+}
+
 @Composable
 fun Hairline(modifier: Modifier = Modifier) {
     Box(modifier.fillMaxWidth().height(1.dp).background(ArcanaTheme.colors.hairline))

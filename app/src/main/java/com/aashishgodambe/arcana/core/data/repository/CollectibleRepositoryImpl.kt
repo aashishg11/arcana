@@ -44,10 +44,33 @@ class CollectibleRepositoryImpl @Inject constructor(
 
     override fun observeTotalValueCents(): Flow<Int> = collectibleDao.observeTotalValueCents()
 
+    override fun observeCopyCount(): Flow<Int> = collectibleDao.observeCopyCount()
+
     override fun observeListBreakdown(): Flow<List<CollectionGroup>> = collectibleDao.observeListBreakdown()
 
     override suspend fun getById(localId: Long): Collectible? =
         collectibleDao.getWithDetails(localId)?.toDomain()
+
+    override suspend fun getMostValuable(limit: Int): List<Collectible> =
+        collectibleDao.getMostValuableWithDetails(limit).mapNotNull { it.toDomain() }
+
+    override suspend fun search(query: String, limit: Int): List<Collectible> {
+        val terms = salientTerms(query)
+        if (terms.isEmpty()) return emptyList()
+        // AND semantics: an item must match EVERY term, so a multi-word query like "power rangers"
+        // returns only items containing both (the "Power Rangers" series) — not everything with
+        // "power" in its name (Kenny Powers, Star-Lord with Power Stone). Fetch each term's matches
+        // generously, then intersect by id. Single-term queries just return that term's matches.
+        val perTerm = terms.map { term ->
+            collectibleDao.searchWithDetails("%$term%", CANDIDATE_LIMIT)
+                .mapNotNull { it.toDomain() }
+                .associateBy { it.localId }
+        }
+        val commonIds = perTerm.map { it.keys }.reduce { acc, ids -> acc intersect ids }
+        return perTerm.first().filterKeys { it in commonIds }.values
+            .sortedByDescending { it.estimatedValueCents }
+            .take(limit)
+    }
 
     override suspend fun importFrom(
         items: List<ImportedItem>,
@@ -77,6 +100,29 @@ class CollectibleRepositoryImpl @Inject constructor(
         inserted
     }
 }
+
+/** Per-term fetch ceiling before intersecting — high so a common term (e.g. "power") can't crowd out
+ *  a rarer co-term during the AND. Well above any single franchise's size in a personal collection. */
+private const val CANDIDATE_LIMIT = 500
+
+/** Stopwords stripped from a question before keyword retrieval — question scaffolding, not subjects. */
+private val SEARCH_STOPWORDS = setOf(
+    "do", "does", "did", "have", "has", "had", "the", "any", "some", "all",
+    "pop", "pops", "funko", "funkos", "vinyl", "figure", "figures", "collectible", "collectibles",
+    "item", "items", "how", "many", "much", "what", "whats", "which", "who", "that", "this",
+    "you", "your", "for", "with", "from", "own", "get", "got", "are", "was", "were", "and", "but",
+    // ranking/intent words — describe the question, not a collection subject, so keep them out of
+    // keyword search (otherwise "most valuable item?" searches for "%most%" instead of falling back).
+    "most", "valuable", "worth", "value", "expensive", "cost", "costs", "priciest", "top", "best",
+    "highest", "lowest", "rare", "rarest", "cheap", "cheapest", "list", "show", "tell", "about",
+)
+
+/** Lowercased word tokens ≥3 chars that aren't stopwords — the searchable subjects of a question. */
+private fun salientTerms(query: String): List<String> =
+    query.lowercase()
+        .split(Regex("[^a-z0-9]+"))
+        .filter { it.length >= 3 && it !in SEARCH_STOPWORDS }
+        .distinct()
 
 private fun ImportedItem.toEntity() = CollectibleEntity(
     category = category,

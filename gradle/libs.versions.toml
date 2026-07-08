@@ -14,7 +14,9 @@ commonsCsv = "1.12.0"
 navigationCompose = "2.9.8"
 hiltNavigationCompose = "1.4.0-rc01"
 coil = "3.5.0"
-# --- Spike-only (throwaway; deleted Day 5) ---
+coroutinesTest = "1.10.2"
+turbine = "1.2.1"
+# --- Compose + on-device AI ---
 composeBom = "2026.06.00"
 activityCompose = "1.12.0"
 lifecycle = "2.10.0"
@@ -27,7 +29,9 @@ junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
-# --- Spike-only (throwaway; deleted Day 5) ---
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutinesTest" }
+turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
+# --- Compose + on-device AI ---
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
 androidx-lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycle" }

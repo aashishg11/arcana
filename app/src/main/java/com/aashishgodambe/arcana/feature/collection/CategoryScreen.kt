@@ -36,6 +36,7 @@ import coil3.compose.AsyncImage
 import com.aashishgodambe.arcana.core.data.repository.CollectibleRepository
 import com.aashishgodambe.arcana.core.domain.model.Collectible
 import com.aashishgodambe.arcana.ui.component.Hairline
+import com.aashishgodambe.arcana.ui.component.QuantityBadge
 import com.aashishgodambe.arcana.ui.formatUsd
 import com.aashishgodambe.arcana.ui.theme.ArcanaTheme
 import com.aashishgodambe.arcana.ui.theme.Mono
@@ -97,6 +98,7 @@ private fun ItemRow(item: Collectible, onClick: () -> Unit) {
             )
         }
         Text(item.name, color = c.text, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        QuantityBadge(item.quantity)
         Text(formatUsd(item.estimatedValueCents), fontFamily = Mono, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = c.text)
     }
 }
