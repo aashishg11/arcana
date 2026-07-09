@@ -3,6 +3,7 @@ package com.aashishgodambe.arcana.core.domain.usecase
 import com.aashishgodambe.arcana.core.data.repository.CollectibleRepository
 import com.aashishgodambe.arcana.core.domain.model.ListDelta
 import com.aashishgodambe.arcana.core.domain.model.WeeklyDeltas
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import kotlin.math.abs
 
@@ -31,6 +32,16 @@ class ComputeWeeklyDeltas @Inject constructor(
         }.sortedByDescending { abs(it.deltaCents) }
 
         if (lists.isEmpty()) return null
-        return WeeklyDeltas(totalDeltaCents = lists.sumOf { it.deltaCents }, lists = lists)
+
+        // The overall total is the portfolio-wide week delta (all items, matching the Portfolio headline)
+        // — not the sum of per-list deltas, which omits any item without a list name. Falls back to the
+        // list sum only when the aggregate series is unavailable.
+        val portfolio = repository.observePortfolioSeries().first()
+        val total = if (portfolio.size >= 2) {
+            portfolio.last().totalValueCents - portfolio[portfolio.size - 2].totalValueCents
+        } else {
+            lists.sumOf { it.deltaCents }
+        }
+        return WeeklyDeltas(totalDeltaCents = total, lists = lists)
     }
 }

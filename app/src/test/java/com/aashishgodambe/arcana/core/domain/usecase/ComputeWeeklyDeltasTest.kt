@@ -20,6 +20,9 @@ class ComputeWeeklyDeltasTest {
                 "Nft funko" to listOf(PortfolioPoint(lastWeek, 1_958_400), PortfolioPoint(thisWeek, 2_003_500)),
                 "Marvel" to listOf(PortfolioPoint(lastWeek, 237_300), PortfolioPoint(thisWeek, 221_000)),
             )
+            // Portfolio-wide series includes list-less items, so its delta (24_000) differs from the
+            // sum of per-list deltas (28_800).
+            portfolioSeries = listOf(PortfolioPoint(lastWeek, 2_200_000), PortfolioPoint(thisWeek, 2_224_000))
         }
 
         val deltas = ComputeWeeklyDeltas(repo).invoke()!!
@@ -28,8 +31,8 @@ class ComputeWeeklyDeltasTest {
         assertEquals("Nft funko", deltas.lists.first().listName)
         assertEquals(45_100, deltas.lists.first().deltaCents)
         assertEquals(-16_300, deltas.lists[1].deltaCents)
-        // Total is the net of the per-list moves.
-        assertEquals(28_800, deltas.totalDeltaCents)
+        // Total is the portfolio-wide delta (matches the headline), NOT the sum of list deltas.
+        assertEquals(24_000, deltas.totalDeltaCents)
     }
 
     @Test

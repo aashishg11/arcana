@@ -25,6 +25,9 @@ class FakeCollectibleRepository(items: List<Collectible> = emptyList()) : Collec
     /** Directly settable per-list series for delta/summary tests (Collectible carries no list name). */
     var listSeries: Map<String, List<PortfolioPoint>> = emptyMap()
 
+    /** Optional override for the aggregate portfolio series; when null it is derived from snapshots. */
+    var portfolioSeries: List<PortfolioPoint>? = null
+
     private val sorted get() = byId.values.sortedByDescending { it.estimatedValueCents }
 
     fun snapshotsFor(localId: Long): List<ValueSnapshot> = snapshots[localId].orEmpty().sortedBy { it.at }
@@ -42,6 +45,7 @@ class FakeCollectibleRepository(items: List<Collectible> = emptyList()) : Collec
     override fun observeValueHistory(localId: Long): Flow<List<ValueSnapshot>> = flowOf(snapshotsFor(localId))
 
     override fun observePortfolioSeries(): Flow<List<PortfolioPoint>> {
+        portfolioSeries?.let { return flowOf(it) }
         val points = snapshots.entries
             .flatMap { (id, snaps) -> snaps.map { it.at to it.valueCents * (byId[id]?.quantity ?: 1) } }
             .groupBy({ it.first }, { it.second })

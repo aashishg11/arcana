@@ -22,6 +22,8 @@ activityCompose = "1.12.0"
 lifecycle = "2.10.0"
 firebaseAi = "17.13.0"
 firebaseAiOndevice = "16.0.0-beta03"
+mlkitGenaiSummarization = "1.0.0-beta1"
+concurrentFutures = "1.2.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -43,6 +45,8 @@ androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-toolin
 androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
 firebase-ai = { group = "com.google.firebase", name = "firebase-ai", version.ref = "firebaseAi" }
 firebase-ai-ondevice = { group = "com.google.firebase", name = "firebase-ai-ondevice", version.ref = "firebaseAiOndevice" }
+mlkit-genai-summarization = { group = "com.google.mlkit", name = "genai-summarization", version.ref = "mlkitGenaiSummarization" }
+androidx-concurrent-futures-ktx = { group = "androidx.concurrent", name = "concurrent-futures-ktx", version.ref = "concurrentFutures" }
 
 # --- Data layer (Room + Hilt) ---
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }

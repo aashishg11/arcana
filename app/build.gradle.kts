@@ -80,6 +80,10 @@ dependencies {
     implementation(libs.firebase.ai)
     implementation(libs.firebase.ai.ondevice)
 
+    // --- On-device AI (ML Kit GenAI Summarization — genai-summarization sample) ---
+    implementation(libs.mlkit.genai.summarization)
+    implementation(libs.androidx.concurrent.futures.ktx)   // ListenableFuture.await()
+
     // --- Data layer ---
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
