@@ -19,8 +19,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.aashishgodambe.arcana.core.data.repository.CollectibleRepository
+import com.aashishgodambe.arcana.feature.benchmark.BenchmarkScreen
 import com.aashishgodambe.arcana.feature.collection.CategoryScreen
 import com.aashishgodambe.arcana.feature.detail.DetailScreen
+import com.aashishgodambe.arcana.feature.settings.SettingsScreen
 import com.aashishgodambe.arcana.feature.onboarding.ImportScreen
 import com.aashishgodambe.arcana.feature.onboarding.OnboardingWelcomeScreen
 import com.aashishgodambe.arcana.feature.portfolio.PortfolioScreen
@@ -39,6 +41,8 @@ object Routes {
     const val PORTFOLIO = "portfolio"
     const val CATEGORY = "category/{list}"
     const val DETAIL = "detail/{localId}"
+    const val SETTINGS = "settings"
+    const val BENCHMARK = "benchmark"
     fun import(uri: String) = "import/${Uri.encode(uri)}"
     fun category(list: String) = "category/${Uri.encode(list)}"
     fun detail(localId: Long) = "detail/$localId"
@@ -70,6 +74,7 @@ fun ArcanaNavHost() {
             PortfolioScreen(
                 onGroupClick = { name -> nav.navigate(Routes.category(name)) },
                 onItemClick = { id -> nav.navigate(Routes.detail(id)) },
+                onOpenSettings = { nav.navigate(Routes.SETTINGS) },
             )
         }
         composable(Routes.CATEGORY, arguments = listOf(navArgument("list") { type = NavType.StringType })) {
@@ -80,6 +85,15 @@ fun ArcanaNavHost() {
         }
         composable(Routes.DETAIL, arguments = listOf(navArgument("localId") { type = NavType.LongType })) {
             DetailScreen(onBack = { nav.popBackStack() })
+        }
+        composable(Routes.SETTINGS) {
+            SettingsScreen(
+                onBack = { nav.popBackStack() },
+                onOpenBenchmark = { nav.navigate(Routes.BENCHMARK) },
+            )
+        }
+        composable(Routes.BENCHMARK) {
+            BenchmarkScreen(onBack = { nav.popBackStack() })
         }
     }
 }

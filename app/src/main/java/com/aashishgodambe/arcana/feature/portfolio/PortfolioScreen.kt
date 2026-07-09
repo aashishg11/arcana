@@ -174,6 +174,7 @@ class PortfolioViewModel @Inject constructor(
 fun PortfolioScreen(
     onGroupClick: (String) -> Unit,
     onItemClick: (Long) -> Unit,
+    onOpenSettings: () -> Unit,
     vm: PortfolioViewModel = hiltViewModel(),
 ) {
     val c = ArcanaTheme.colors
@@ -189,7 +190,7 @@ fun PortfolioScreen(
                 Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("Arcana", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, color = c.text)
                     Spacer(Modifier.weight(1f))
-                    Box(Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(c.surface).border(1.dp, c.hairline, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(c.surface).border(1.dp, c.hairline, RoundedCornerShape(12.dp)).clickable(onClick = onOpenSettings), contentAlignment = Alignment.Center) {
                         Text("⚙", color = c.textDim, fontSize = 17.sp)
                     }
                 }
