@@ -28,7 +28,11 @@ class MockPriceProvider @Inject constructor() : PriceProvider {
     override val supportedCategories: Set<CollectibleCategory> = setOf(CollectibleCategory.Funko)
 
     override suspend fun fetchPrice(collectible: Collectible): PriceResult {
-        val medianActive = MockPriceModel.currentValueCents(collectible)
+        // Small live-market jitter (slight upward bias) so each "Sync now" nudges the value and demos aren't
+        // dead-flat. Non-seeded on purpose — unlike the deterministic MockPriceModel (shared with the history
+        // seeder), this is fresh movement per sync, so consecutive snapshots differ and deltas are non-zero.
+        val jitter = 1.0 + Random.Default.nextDouble(-0.02, 0.03)
+        val medianActive = (MockPriceModel.currentValueCents(collectible) * jitter).toInt().coerceAtLeast(1)
         val listings = syntheticListings(collectible, medianActive)
         return PriceResult.Success(
             valueCents = medianActive,
