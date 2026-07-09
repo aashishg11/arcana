@@ -21,8 +21,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,15 +44,21 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import coil3.compose.AsyncImage
+import com.aashishgodambe.arcana.core.ai.model.MarketContext
+import com.aashishgodambe.arcana.core.ai.model.PriceResult
+import com.aashishgodambe.arcana.core.ai.pricing.EbaySearch
+import com.aashishgodambe.arcana.core.ai.pricing.PriceProviderChain
 import com.aashishgodambe.arcana.core.data.repository.CollectibleRepository
 import com.aashishgodambe.arcana.core.domain.model.Collectible
 import com.aashishgodambe.arcana.core.domain.model.FunkoPop
 import com.aashishgodambe.arcana.core.domain.model.ValueSnapshot
 import com.aashishgodambe.arcana.core.domain.model.currentValueCents
+import com.aashishgodambe.arcana.core.domain.usecase.SnapshotItemPrice
 import com.aashishgodambe.arcana.ui.component.ArcanaChip
 import com.aashishgodambe.arcana.ui.component.ChartRange
 import com.aashishgodambe.arcana.ui.component.ChipStyle
 import com.aashishgodambe.arcana.ui.component.GhostButton
+import com.aashishgodambe.arcana.ui.component.MarketSection
 import com.aashishgodambe.arcana.ui.component.PlaceholderCard
 import com.aashishgodambe.arcana.ui.component.RangeSelector
 import com.aashishgodambe.arcana.ui.component.ValueSparkline
@@ -70,9 +79,18 @@ import java.time.Instant
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
+/** Live market state for the Detail market card. */
+data class DetailMarketState(
+    val loading: Boolean = true,
+    val market: MarketContext? = null,
+    val buyUrl: String = "",
+)
+
 @HiltViewModel
 class DetailViewModel @Inject constructor(
-    repository: CollectibleRepository,
+    private val repository: CollectibleRepository,
+    private val priceChain: PriceProviderChain,
+    private val snapshotItemPrice: SnapshotItemPrice,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
     private val localId: Long = checkNotNull(savedStateHandle["localId"])
@@ -84,27 +102,93 @@ class DetailViewModel @Inject constructor(
         .map { snaps -> val cutoff = Instant.now().minus(Duration.ofDays(90)); snaps.filter { it.at >= cutoff } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    init { viewModelScope.launch { _collectible.value = repository.getById(localId) } }
+    private val _market = MutableStateFlow(DetailMarketState())
+    val market: StateFlow<DetailMarketState> = _market.asStateFlow()
+
+    private val _snapshotting = MutableStateFlow(false)
+    val snapshotting: StateFlow<Boolean> = _snapshotting.asStateFlow()
+
+    /** One-shot user feedback for the "Snapshot today's price" action; cleared once shown. */
+    private val _snapshotMessage = MutableStateFlow<String?>(null)
+    val snapshotMessage: StateFlow<String?> = _snapshotMessage.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            val item = repository.getById(localId)
+            _collectible.value = item
+            if (item != null) {
+                // Market is live-on-render (like the wireframe) — no "refresh price" button.
+                val result = priceChain.fetchPrice(item)
+                _market.value = DetailMarketState(
+                    loading = false,
+                    market = (result as? PriceResult.Success)?.marketContext,
+                    buyUrl = EbaySearch.url(item),
+                )
+            }
+        }
+    }
+
+    /** "Snapshot today's price" — commits a UserRefresh point (debounced) and refreshes the shown value. */
+    fun snapshotPrice() {
+        if (_snapshotting.value) return
+        _snapshotting.value = true
+        viewModelScope.launch {
+            _snapshotMessage.value = when (val r = snapshotItemPrice(localId)) {
+                is SnapshotItemPrice.Result.Snapshotted -> "Snapshot saved · ${formatUsd(r.valueCents)}"
+                is SnapshotItemPrice.Result.AlreadyUpToDate -> "Already up to date — snapped today at ${formatUsd(r.valueCents)}"
+                is SnapshotItemPrice.Result.Unavailable -> r.reason
+            }
+            _collectible.value = repository.getById(localId)   // reflect the new lastKnownValue
+            _snapshotting.value = false
+        }
+    }
+
+    fun consumeSnapshotMessage() { _snapshotMessage.value = null }
 }
 
 @Composable
 fun DetailScreen(onBack: () -> Unit, vm: DetailViewModel = hiltViewModel()) {
     val collectible by vm.collectible.collectAsStateWithLifecycle()
     val history by vm.history.collectAsStateWithLifecycle()
+    val market by vm.market.collectAsStateWithLifecycle()
+    val snapshotting by vm.snapshotting.collectAsStateWithLifecycle()
+    val snapshotMessage by vm.snapshotMessage.collectAsStateWithLifecycle()
     // Dispatch through the sealed domain type — adding FigPin/PokemonCard later breaks this `when`.
     when (val item = collectible) {
         null -> Box(Modifier.fillMaxSize().background(ArcanaTheme.colors.bg), contentAlignment = Alignment.Center) {
             Text("Loading…", color = ArcanaTheme.colors.textDim)
         }
-        is FunkoPop -> FunkoDetail(item, history, onBack)
+        is FunkoPop -> FunkoDetail(
+            pop = item,
+            history = history,
+            market = market,
+            snapshotting = snapshotting,
+            snapshotMessage = snapshotMessage,
+            onSnapshot = vm::snapshotPrice,
+            onSnapshotMessageShown = vm::consumeSnapshotMessage,
+            onBack = onBack,
+        )
     }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun FunkoDetail(pop: FunkoPop, history: List<ValueSnapshot>, onBack: () -> Unit) {
+private fun FunkoDetail(
+    pop: FunkoPop,
+    history: List<ValueSnapshot>,
+    market: DetailMarketState,
+    snapshotting: Boolean,
+    snapshotMessage: String?,
+    onSnapshot: () -> Unit,
+    onSnapshotMessageShown: () -> Unit,
+    onBack: () -> Unit,
+) {
     val c = ArcanaTheme.colors
-    Scaffold(containerColor = c.bg) { padding ->
+    val snackbarState = remember { SnackbarHostState() }
+    LaunchedEffect(snapshotMessage) {
+        snapshotMessage?.let { snackbarState.showSnackbar(it); onSnapshotMessageShown() }
+    }
+    Scaffold(containerColor = c.bg, snackbarHost = { SnackbarHost(snackbarState) }) { padding ->
         Column(
             Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -134,8 +218,19 @@ private fun FunkoDetail(pop: FunkoPop, history: List<ValueSnapshot>, onBack: () 
                 Text(formatUsd(pop.currentValueCents), style = MaterialTheme.typography.displayLarge.copy(fontSize = 34.sp), color = c.text)
                 pop.exclusiveTo?.let { Text("Exclusive · $it", fontFamily = Mono, fontSize = 11.sp, color = c.textDim) }
             }
-            PlaceholderCard("Median active listing", "Live eBay market — median active price + top listings — lands next.", "eBay Browse")
-            GhostButton("⊹ Snapshot today's price", onClick = {}, accent = true)
+            when {
+                market.loading ->
+                    PlaceholderCard("Median active listing", "Loading live market…", "eBay Browse")
+                market.market != null ->
+                    MarketSection(market.market, market.buyUrl)
+                else ->
+                    PlaceholderCard("Median active listing", "Market data is unavailable right now.", "eBay Browse")
+            }
+            GhostButton(
+                if (snapshotting) "Snapshotting…" else "⊹ Snapshot today's price",
+                onClick = { if (!snapshotting) onSnapshot() },
+                accent = true,
+            )
             ValueHistoryCard(history)
             GhostButton("✎ Edit details", onClick = {})
             Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {

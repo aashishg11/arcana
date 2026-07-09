@@ -44,10 +44,12 @@ import com.aashishgodambe.arcana.core.ai.model.InferenceLocation
 import com.aashishgodambe.arcana.core.ai.model.InferenceResult
 import com.aashishgodambe.arcana.core.ai.summary.CollectionSummarizer
 import com.aashishgodambe.arcana.core.data.database.entity.CollectionGroup
+import com.aashishgodambe.arcana.core.data.database.entity.SnapshotTrigger
 import com.aashishgodambe.arcana.core.data.repository.CollectibleRepository
 import com.aashishgodambe.arcana.core.domain.model.PortfolioPoint
 import com.aashishgodambe.arcana.core.domain.usecase.ComputeWeeklyDeltas
 import com.aashishgodambe.arcana.core.domain.usecase.SeedMockHistory
+import com.aashishgodambe.arcana.core.domain.usecase.SyncAllPrices
 import com.aashishgodambe.arcana.feature.ask.AskSheet
 import com.aashishgodambe.arcana.ui.component.ChartRange
 import com.aashishgodambe.arcana.ui.component.InferenceBadge
@@ -105,6 +107,7 @@ class PortfolioViewModel @Inject constructor(
     seedMockHistory: SeedMockHistory,
     private val computeWeeklyDeltas: ComputeWeeklyDeltas,
     private val summarizer: CollectionSummarizer,
+    private val syncAllPrices: SyncAllPrices,
 ) : ViewModel() {
     val state: StateFlow<PortfolioUiState> = combine(
         repository.observeTotalValueCents(),
@@ -125,25 +128,43 @@ class PortfolioViewModel @Inject constructor(
     private val _summary = MutableStateFlow(SummaryUiState())
     val summary: StateFlow<SummaryUiState> = _summary.asStateFlow()
 
+    private val _syncing = MutableStateFlow(false)
+    val syncing: StateFlow<Boolean> = _syncing.asStateFlow()
+
     init {
         // Seed once (idempotent), then generate the weekly summary on-device from the resulting deltas.
         // On-device inference is foreground-only (Week-2 finding), so this runs on Portfolio load — not
         // in the background worker.
         viewModelScope.launch {
             seedMockHistory()
-            val deltas = computeWeeklyDeltas() ?: return@launch   // thin data → keep the placeholder
-            _summary.update { it.copy(streaming = "") }
-            summarizer.summarize(deltas).collect { result ->
-                when (result) {
-                    is InferenceResult.Streaming ->
-                        _summary.update { it.copy(streaming = result.partialText) }
-                    is InferenceResult.Success ->
-                        _summary.update {
-                            it.copy(text = result.fullText, streaming = null, location = result.metadata.executedOn)
-                        }
-                    is InferenceResult.Error ->
-                        _summary.update { it.copy(error = result.cause.message ?: "Couldn't generate summary", streaming = null) }
-                }
+            generateSummary()
+        }
+    }
+
+    /** "Sync now" — the same [SyncAllPrices] path as the weekly worker, on demand; then re-summarize. */
+    fun syncNow() {
+        if (_syncing.value) return
+        _syncing.value = true
+        viewModelScope.launch {
+            syncAllPrices(SnapshotTrigger.UserRefresh)   // writes fresh snapshots → charts update reactively
+            generateSummary()                             // refresh the "what moved" card from new deltas
+            _syncing.value = false
+        }
+    }
+
+    private suspend fun generateSummary() {
+        val deltas = computeWeeklyDeltas() ?: return   // thin data → keep the placeholder
+        _summary.value = SummaryUiState(streaming = "")
+        summarizer.summarize(deltas).collect { result ->
+            when (result) {
+                is InferenceResult.Streaming ->
+                    _summary.update { it.copy(streaming = result.partialText) }
+                is InferenceResult.Success ->
+                    _summary.update {
+                        it.copy(text = result.fullText, streaming = null, location = result.metadata.executedOn)
+                    }
+                is InferenceResult.Error ->
+                    _summary.update { it.copy(error = result.cause.message ?: "Couldn't generate summary", streaming = null) }
             }
         }
     }
@@ -158,6 +179,7 @@ fun PortfolioScreen(
     val c = ArcanaTheme.colors
     val s by vm.state.collectAsStateWithLifecycle()
     val summary by vm.summary.collectAsStateWithLifecycle()
+    val syncing by vm.syncing.collectAsStateWithLifecycle()
     var askOpen by remember { mutableStateOf(false) }
 
     Scaffold(containerColor = c.bg) { padding ->
@@ -223,7 +245,11 @@ fun PortfolioScreen(
                             ?: "Not synced yet",
                         fontFamily = Mono, fontSize = 11.sp, color = c.textFaint,
                     )
-                    Text("Sync now", fontFamily = Mono, fontSize = 11.sp, color = c.iris)
+                    Text(
+                        if (syncing) "Syncing…" else "Sync now",
+                        fontFamily = Mono, fontSize = 11.sp, color = c.iris,
+                        modifier = Modifier.clickable(enabled = !syncing) { vm.syncNow() },
+                    )
                 }
 
                 // AI summary card

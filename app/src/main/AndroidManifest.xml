@@ -26,6 +26,19 @@
             </intent-filter>
         </activity>
 
+        <!-- On-demand WorkManager init: remove the default initializer so the app supplies the
+             Hilt worker factory (see ArcanaApplication.workManagerConfiguration). -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
+
     </application>
 
 </manifest>

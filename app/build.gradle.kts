@@ -93,6 +93,11 @@ dependencies {
     implementation(libs.androidx.hilt.navigation.compose)
     implementation(libs.commons.csv)
 
+    // --- Background work (weekly price sync) ---
+    implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.hilt.work)
+    ksp(libs.androidx.hilt.compiler)
+
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.coil.compose)

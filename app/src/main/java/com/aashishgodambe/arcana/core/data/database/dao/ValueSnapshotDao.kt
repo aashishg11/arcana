@@ -35,10 +35,10 @@ interface ValueSnapshotDao {
     suspend fun totalCount(): Int
 
     /**
-     * Aggregate portfolio value series: for each snapshot instant, the total value across the whole
-     * collection counting duplicate copies (Σ valueCents × quantity). Relies on all items sharing the
-     * same set of weekly snapshot instants (the seeder aligns them), so each instant is one portfolio
-     * point. Backs the Portfolio sparkline.
+     * Aggregate portfolio value series: for each *batch* snapshot instant (seed week or a full sync), the
+     * total value across the collection counting duplicate copies (Σ valueCents × quantity). `HAVING
+     * COUNT(*) > 1` keeps only instants where many items were snapshotted together, so a single-item
+     * "Snapshot today's price" doesn't create a spurious near-zero portfolio point. Backs the sparkline.
      */
     @Query(
         """
@@ -46,6 +46,7 @@ interface ValueSnapshotDao {
         FROM value_snapshots vs
         JOIN collectibles c ON c.localId = vs.collectibleLocalId
         GROUP BY vs.snapshotAt
+        HAVING COUNT(*) > 1
         ORDER BY vs.snapshotAt
         """,
     )

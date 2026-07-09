@@ -19,12 +19,17 @@ class ComputeWeeklyDeltas @Inject constructor(
     private val repository: CollectibleRepository,
 ) {
     suspend operator fun invoke(): WeeklyDeltas? {
-        val series = repository.listValueSeries()
-        val instants = series.values.flatMap { points -> points.map { it.at } }.distinct().sorted()
-        if (instants.size < 2) return null
-        val current = instants.last()
-        val previous = instants[instants.size - 2]
+        // Anchor "this week" vs "last week" to the two most recent *batch* instants from the aggregate
+        // portfolio series (which already excludes single-item snapshots) — so a lone "Snapshot today's
+        // price" can't be mistaken for a weekly sample. The overall total is this portfolio-wide delta
+        // (all items, matching the headline), not the sum of per-list deltas.
+        val portfolio = repository.observePortfolioSeries().first()
+        if (portfolio.size < 2) return null
+        val current = portfolio.last().at
+        val previous = portfolio[portfolio.size - 2].at
+        val total = portfolio.last().totalValueCents - portfolio[portfolio.size - 2].totalValueCents
 
+        val series = repository.listValueSeries()
         val lists = series.mapNotNull { (name, points) ->
             val cur = points.firstOrNull { it.at == current }?.totalValueCents ?: return@mapNotNull null
             val prev = points.firstOrNull { it.at == previous }?.totalValueCents ?: return@mapNotNull null
@@ -32,16 +37,6 @@ class ComputeWeeklyDeltas @Inject constructor(
         }.sortedByDescending { abs(it.deltaCents) }
 
         if (lists.isEmpty()) return null
-
-        // The overall total is the portfolio-wide week delta (all items, matching the Portfolio headline)
-        // — not the sum of per-list deltas, which omits any item without a list name. Falls back to the
-        // list sum only when the aggregate series is unavailable.
-        val portfolio = repository.observePortfolioSeries().first()
-        val total = if (portfolio.size >= 2) {
-            portfolio.last().totalValueCents - portfolio[portfolio.size - 2].totalValueCents
-        } else {
-            lists.sumOf { it.deltaCents }
-        }
         return WeeklyDeltas(totalDeltaCents = total, lists = lists)
     }
 }

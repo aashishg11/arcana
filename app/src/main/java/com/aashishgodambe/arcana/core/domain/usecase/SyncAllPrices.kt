@@ -4,6 +4,7 @@ import com.aashishgodambe.arcana.core.ai.model.PriceResult
 import com.aashishgodambe.arcana.core.ai.pricing.PriceProviderChain
 import com.aashishgodambe.arcana.core.data.database.entity.SnapshotTrigger
 import com.aashishgodambe.arcana.core.data.repository.CollectibleRepository
+import java.time.Instant
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -18,6 +19,9 @@ class SyncAllPrices @Inject constructor(
     private val repository: CollectibleRepository,
 ) {
     suspend operator fun invoke(trigger: SnapshotTrigger = SnapshotTrigger.WeeklySync): Int {
+        // One timestamp for the whole sync so all items land on a single portfolio-series instant (one
+        // aggregate point), not one instant per item.
+        val syncedAt = Instant.now()
         var synced = 0
         for (item in repository.allCollectibles()) {
             try {
@@ -28,7 +32,7 @@ class SyncAllPrices @Inject constructor(
                         valueCents = price.valueCents,
                         source = price.source,
                         trigger = trigger,
-                        at = price.fetchedAt,
+                        at = syncedAt,
                     )
                     synced++
                 }
