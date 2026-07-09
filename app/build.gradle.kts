@@ -43,6 +43,13 @@ android {
             assets.srcDirs(files("$projectDir/../seed-data"))
         }
     }
+    testOptions {
+        unitTests {
+            // Let JVM unit tests exercise main code that calls into android.jar (e.g. android.util.Log
+            // in BenchmarkHarness) — unmocked framework calls return defaults instead of throwing.
+            isReturnDefaultValues = true
+        }
+    }
 }
 
 kotlin {
