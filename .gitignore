@@ -27,3 +27,10 @@ seed-data/*.raw.csv
 # Firebase config — excluded by default for a public repo (contains project/app ids + client API key).
 # Remove this line if you want the repo buildable on clone without supplying your own.
 /app/google-services.json
+
+# ExecuTorch harness (tools/executorch-harness/) is a standalone Gradle project;
+# the root /build rule is anchored, so ignore its build output explicitly.
+/tools/executorch-harness/build/
+/tools/executorch-harness/app/build/
+# Quantized model artifacts are 86 MiB – 1.7 GiB — never committed; rebuild from export/.
+*.pte
