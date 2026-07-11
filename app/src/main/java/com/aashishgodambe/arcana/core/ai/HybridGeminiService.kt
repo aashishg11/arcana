@@ -55,7 +55,9 @@ class HybridGeminiService : GeminiService {
             val primary = when (routingHint) {
                 RoutingHint.OnlyOnDevice -> onlyOnDevice
                 RoutingHint.OnlyCloud -> cloudOnly
-                RoutingHint.Auto, RoutingHint.PreferOnDevice -> preferOnDevice
+                // OnlyOwnModel is the own-model engine's lane — the DelegatingGeminiService routes it to
+                // LiteRt and never here. If it somehow arrives, degrade to on-device rather than crash.
+                RoutingHint.Auto, RoutingHint.PreferOnDevice, RoutingHint.OnlyOwnModel -> preferOnDevice
             }
             try {
                 streamFrom(primary, prompt, routingHint)

@@ -8,5 +8,7 @@ package com.aashishgodambe.arcana.core.ai.model
  * - [OnlyOnDevice] — offline "Ask Arcana": the caller knows there's no network, so don't let the
  *   service attempt a cloud call and time out.
  * - [OnlyCloud] — benchmark mode, forcing cloud for a direct on-device-vs-cloud comparison.
+ * - [OnlyOwnModel] — pin to the self-quantized Gemma (LiteRT). Set by the benchmark's own-model column
+ *   and by the engine picker; the [Auto] path reaches it via the persisted selection, not directly.
  */
-enum class RoutingHint { Auto, PreferOnDevice, OnlyOnDevice, OnlyCloud }
+enum class RoutingHint { Auto, PreferOnDevice, OnlyOnDevice, OnlyCloud, OnlyOwnModel }

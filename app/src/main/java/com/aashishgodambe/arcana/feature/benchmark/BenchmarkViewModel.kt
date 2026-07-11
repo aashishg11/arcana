@@ -8,6 +8,7 @@ import com.aashishgodambe.arcana.core.ai.benchmark.BenchmarkHarness
 import com.aashishgodambe.arcana.core.ai.benchmark.BenchmarkProgress
 import com.aashishgodambe.arcana.core.ai.benchmark.BenchmarkResult
 import com.aashishgodambe.arcana.core.ai.benchmark.BenchmarkSample
+import com.aashishgodambe.arcana.core.ai.OwnModelEngine
 import com.aashishgodambe.arcana.core.ai.capability.DeviceCapabilityChecker
 import com.aashishgodambe.arcana.core.ai.capability.ModelReadiness
 import com.aashishgodambe.arcana.core.ai.capability.ProvisioningProgress
@@ -42,6 +43,7 @@ data class BenchmarkUiState(
 class BenchmarkViewModel @Inject constructor(
     private val harness: BenchmarkHarness,
     private val capability: DeviceCapabilityChecker,
+    private val ownModel: OwnModelEngine,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(BenchmarkUiState())
@@ -60,11 +62,14 @@ class BenchmarkViewModel @Inject constructor(
     fun runBenchmark() {
         if (_state.value.isRunning) return
         viewModelScope.launch {
-            // Gate: only benchmark on-device when Nano is actually provisioned — else OnlyOnDevice 606s.
+            // Gate each on-device column on real availability: Nano on provisioning (else OnlyOnDevice 606s),
+            // the own-model on the side-loaded file being present (else every call errors). Cloud always runs.
             val readiness = capability.onDeviceReadiness()
-            val engines =
-                if (readiness == ModelReadiness.Available) listOf(BenchmarkEngine.OnDevice, BenchmarkEngine.Cloud)
-                else listOf(BenchmarkEngine.Cloud)
+            val engines = buildList {
+                if (readiness == ModelReadiness.Available) add(BenchmarkEngine.OnDevice)
+                if (ownModel.isModelAvailable()) add(BenchmarkEngine.OwnModel)
+                add(BenchmarkEngine.Cloud)
+            }
 
             _state.update {
                 it.copy(

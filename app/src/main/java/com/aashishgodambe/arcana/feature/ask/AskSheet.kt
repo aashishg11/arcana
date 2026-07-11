@@ -112,7 +112,7 @@ fun AskSheet(onDismiss: () -> Unit, onItemClick: (Long) -> Unit, vm: AskViewMode
                         }
                         turn.metadata?.let { meta ->
                             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                BenchmarkCaption(meta.executedOn.name, meta.totalLatencyMs, meta.firstTokenLatencyMs, meta.outputTokenCount)
+                                BenchmarkCaption(meta.executedOn, meta.totalLatencyMs, meta.firstTokenLatencyMs, meta.outputTokenCount)
                                 if (index == s.turns.lastIndex && !s.isRunning) {
                                     val ranOnCloud = meta.executedOn == InferenceLocation.Cloud
                                     Text(
@@ -218,9 +218,13 @@ private fun Bubble(text: String, fromUser: Boolean, streaming: Boolean) {
 }
 
 @Composable
-private fun BenchmarkCaption(location: String, totalMs: Long, firstTokenMs: Long?, tokens: Int?) {
+private fun BenchmarkCaption(location: InferenceLocation, totalMs: Long, firstTokenMs: Long?, tokens: Int?) {
     val c = ArcanaTheme.colors
-    val where = if (location == "OnDevice") "on-device" else "cloud"
+    val where = when (location) {
+        InferenceLocation.OnDevice -> "on-device"
+        InferenceLocation.OnDeviceOwnModel -> "your gemma"
+        InferenceLocation.Cloud -> "cloud"
+    }
     val parts = buildList {
         add(where)
         add("$totalMs ms")

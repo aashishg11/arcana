@@ -35,6 +35,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true   // BuildConfig.DEBUG gates the dev-only LiteRT smoke-test entry
     }
     // The real 283+-item HobbyDB CSV lives in the repo's seed-data/ and is the
     // integration-test fixture — expose it to instrumented tests as an asset.
@@ -90,6 +91,9 @@ dependencies {
     // --- On-device AI (ML Kit GenAI Summarization — genai-summarization sample) ---
     implementation(libs.mlkit.genai.summarization)
     implementation(libs.androidx.concurrent.futures.ktx)   // ListenableFuture.await()
+
+    // --- On-device AI (own-model: self-quantized Gemma 3 1B via MediaPipe LLM Inference / LiteRT-LM) ---
+    implementation(libs.mediapipe.tasks.genai)
 
     // --- Data layer ---
     implementation(libs.androidx.room.runtime)

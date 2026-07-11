@@ -35,6 +35,7 @@ fun InferenceBadge(location: InferenceLocation?, modifier: Modifier = Modifier) 
     val label: String
     when (location) {
         InferenceLocation.OnDevice -> { accent = c.iris; bg = c.irisSoft; label = "On-device" }
+        InferenceLocation.OnDeviceOwnModel -> { accent = c.gold; bg = c.goldSoft; label = "Your Gemma" }
         InferenceLocation.Cloud -> { accent = c.cloud; bg = c.cloudSoft; label = "Cloud" }
         null -> { accent = c.textFaint; bg = Color.Transparent; label = "Ready" }
     }

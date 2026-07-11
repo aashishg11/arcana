@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -27,18 +28,26 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.aashishgodambe.arcana.BuildConfig
+import com.aashishgodambe.arcana.core.ai.LiteRtGeminiService
 import com.aashishgodambe.arcana.core.ai.capability.ModelReadiness
+import com.aashishgodambe.arcana.core.ai.model.AskEngine
+import com.aashishgodambe.arcana.core.ai.model.InferenceResult
+import com.aashishgodambe.arcana.core.ai.model.RoutingHint
+import kotlinx.coroutines.launch
 import com.aashishgodambe.arcana.core.ai.model.InferenceLocation
 import com.aashishgodambe.arcana.core.data.settings.ThemeMode
 import com.aashishgodambe.arcana.ui.component.ArcanaChip
@@ -59,6 +68,8 @@ fun SettingsScreen(
     val workerEnabled by vm.weeklyWorkerEnabled.collectAsStateWithLifecycle()
     val themeMode by vm.themeMode.collectAsStateWithLifecycle()
     val readiness by vm.onDeviceReadiness.collectAsStateWithLifecycle()
+    val askEngine by vm.askEngine.collectAsStateWithLifecycle()
+    val ownModelAvailable by vm.ownModelAvailable.collectAsStateWithLifecycle()
     var licensesOpen by remember { mutableStateOf(false) }
     val uriHandler = LocalUriHandler.current
 
@@ -124,6 +135,39 @@ fun SettingsScreen(
                 )
             }
 
+            // --- Ask Arcana engine picker ---
+            Spacer(Modifier.height(18.dp))
+            SectionLabel("ASK ARCANA ENGINE")
+            SettingCard {
+                EngineOption(
+                    title = "Gemini Nano",
+                    subtitle = "On-device · zero app memory · default",
+                    selected = askEngine == AskEngine.Nano,
+                    enabled = true,
+                    accent = c.iris,
+                ) { vm.setAskEngine(AskEngine.Nano) }
+                EngineDivider()
+                EngineOption(
+                    title = "Your Gemma",
+                    subtitle = if (ownModelAvailable) {
+                        "Self-quantized Gemma 3 1B · LiteRT q4, on-device"
+                    } else {
+                        "Developer feature — model side-loaded"
+                    },
+                    selected = askEngine == AskEngine.OwnModel,
+                    enabled = ownModelAvailable,
+                    accent = c.gold,
+                ) { vm.setAskEngine(AskEngine.OwnModel) }
+                EngineDivider()
+                EngineOption(
+                    title = "Cloud",
+                    subtitle = "Gemini 2.5 Flash-Lite · cloud fallback",
+                    selected = askEngine == AskEngine.Cloud,
+                    enabled = true,
+                    accent = c.cloud,
+                ) { vm.setAskEngine(AskEngine.Cloud) }
+            }
+
             // --- Theme ---
             Spacer(Modifier.height(18.dp))
             SectionLabel("THEME")
@@ -146,6 +190,13 @@ fun SettingsScreen(
                     }
                     Text("›", color = c.textFaint, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 }
+            }
+
+            // Day-1 throwaway: proves the MediaPipe/LiteRT surface loads the side-loaded q4 model and
+            // generates a token in-app. Debug-only; removed when LiteRtGeminiService (Day 2) lands.
+            if (BuildConfig.DEBUG) {
+                Spacer(Modifier.height(10.dp))
+                LiteRtSmokeCard()
             }
 
             // --- About ---
@@ -204,6 +255,100 @@ private fun ReadinessChip(readiness: ModelReadiness) = when (readiness) {
     ModelReadiness.Downloadable -> ArcanaChip("Cloud", ChipStyle.Cloud)
     ModelReadiness.Unavailable -> ArcanaChip("Cloud", ChipStyle.Cloud)
     ModelReadiness.Unknown -> ArcanaChip("Checking…", ChipStyle.Plain)
+}
+
+@Composable
+private fun EngineOption(
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    enabled: Boolean,
+    accent: Color,
+    onSelect: () -> Unit,
+) {
+    val c = ArcanaTheme.colors
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .then(if (enabled) Modifier.clickable(onClick = onSelect) else Modifier)
+            .padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(20.dp).clip(CircleShape)
+                .border(2.dp, if (selected) accent else c.hairlineStrong, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (selected) Box(Modifier.size(10.dp).clip(CircleShape).background(accent))
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                title,
+                fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
+                color = if (enabled) c.text else c.textFaint,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(subtitle, fontFamily = Mono, fontSize = 11.sp, color = c.textFaint, lineHeight = 15.sp)
+        }
+    }
+}
+
+@Composable
+private fun EngineDivider() {
+    Box(Modifier.fillMaxWidth().height(1.dp).background(ArcanaTheme.colors.hairline))
+}
+
+@Composable
+private fun LiteRtSmokeCard() {
+    val c = ArcanaTheme.colors
+    val context = LocalContext.current
+    val service = remember { LiteRtGeminiService(context.applicationContext) }
+    val scope = rememberCoroutineScope()
+    var running by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf("Streams a token from the side-loaded q4 Gemma via LiteRtGeminiService (CPU).") }
+
+    SettingCard {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("LiteRT smoke test", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.text)
+                Spacer(Modifier.height(3.dp))
+                Text(status, fontFamily = Mono, fontSize = 11.sp, color = c.textFaint, lineHeight = 15.sp)
+            }
+            Spacer(Modifier.width(12.dp))
+            Text(
+                if (running) "Running…" else "Run",
+                fontFamily = Mono, fontSize = 12.sp, fontWeight = FontWeight.Medium,
+                color = if (running) c.textDim else c.iris,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .border(1.dp, c.hairline, RoundedCornerShape(8.dp))
+                    .clickable(enabled = !running) {
+                        running = true
+                        status = if (service.isModelAvailable()) "Loading model…" else "Model not installed — side-load it."
+                        scope.launch {
+                            service.generateText(
+                                "What is the capital of France? Answer in one word.",
+                                RoutingHint.Auto,
+                            ).collect { r ->
+                                status = when (r) {
+                                    is InferenceResult.Streaming -> "… ${r.partialText}"
+                                    is InferenceResult.Success -> {
+                                        val m = r.metadata
+                                        "OK · first ${m.firstTokenLatencyMs}ms · total ${m.totalLatencyMs}ms · " +
+                                            "${m.outputTokenCount ?: "n/a"} tok\n→ ${r.fullText}"
+                                    }
+                                    is InferenceResult.Error -> "Failed: ${r.cause.message}"
+                                }
+                            }
+                            running = false
+                        }
+                    }
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+            )
+        }
+    }
 }
 
 @Composable

@@ -1,6 +1,7 @@
 package com.aashishgodambe.arcana.feature.benchmark
 
 import com.aashishgodambe.arcana.core.ai.FakeGeminiService
+import com.aashishgodambe.arcana.core.ai.FakeOwnModelEngine
 import com.aashishgodambe.arcana.core.ai.benchmark.BenchmarkEngine
 import com.aashishgodambe.arcana.core.ai.benchmark.BenchmarkHarness
 import com.aashishgodambe.arcana.core.ai.capability.DeviceCapabilityChecker
@@ -31,8 +32,12 @@ class BenchmarkViewModelTest {
     @Before fun setUp() = Dispatchers.setMain(dispatcher)
     @After fun tearDown() = Dispatchers.resetMain()
 
-    private fun viewModel(readiness: ModelReadiness) =
-        BenchmarkViewModel(BenchmarkHarness(FakeGeminiService()), FakeCapability(readiness))
+    private fun viewModel(readiness: ModelReadiness, ownModelAvailable: Boolean = false) =
+        BenchmarkViewModel(
+            BenchmarkHarness(FakeGeminiService()),
+            FakeCapability(readiness),
+            FakeOwnModelEngine(available = ownModelAvailable),
+        )
 
     @Test
     fun `reads on-device readiness on init`() = runTest(dispatcher) {
@@ -61,6 +66,20 @@ class BenchmarkViewModelTest {
     }
 
     @Test
+    fun `includes the own-model column only when the side-loaded model is available`() = runTest(dispatcher) {
+        val vm = viewModel(ModelReadiness.Available, ownModelAvailable = true)
+        advanceUntilIdle()
+
+        vm.runBenchmark()
+        advanceUntilIdle()
+
+        val engines = vm.state.value.results.map { it.engine }.toSet()
+        // 3 engines × 2 prompts
+        assertEquals(setOf(BenchmarkEngine.OnDevice, BenchmarkEngine.OwnModel, BenchmarkEngine.Cloud), engines)
+        assertEquals(6, vm.state.value.results.size)
+    }
+
+    @Test
     fun `runs cloud-only when on-device is not provisioned`() = runTest(dispatcher) {
         val vm = viewModel(ModelReadiness.Downloadable)
         advanceUntilIdle()
@@ -76,7 +95,7 @@ class BenchmarkViewModelTest {
     @Test
     fun `downloading the model flips readiness to available`() = runTest(dispatcher) {
         val capability = FakeCapability(ModelReadiness.Downloadable)
-        val vm = BenchmarkViewModel(BenchmarkHarness(FakeGeminiService()), capability)
+        val vm = BenchmarkViewModel(BenchmarkHarness(FakeGeminiService()), capability, FakeOwnModelEngine(available = false))
         advanceUntilIdle()
 
         vm.downloadOnDeviceModel()

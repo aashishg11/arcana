@@ -23,12 +23,16 @@ class BenchmarkHarnessTest {
         BenchmarkPrompt("b", "B", "prompt b"),
     )
 
+    // These tests exercise harness mechanics (iteration/cold/pacing/progress), not the engine roster — pin
+    // them to a fixed two-engine set so adding engines (e.g. the Week-7 own-model) doesn't perturb counts.
+    private val twoEngines = listOf(BenchmarkEngine.OnDevice, BenchmarkEngine.Cloud)
+
     @Test
     fun `sweep forces each engine's hint, runs sequentially, and groups per cell`() = runTest {
         val gemini = RecordingGeminiService()
         val harness = BenchmarkHarness(gemini)
 
-        val samples = harness.run(prompts = prompts, iterations = 3).last()
+        val samples = harness.run(prompts = prompts, engines = twoEngines, iterations = 3).last()
 
         // 2 engines × 2 prompts × 3 iterations
         assertEquals(12, samples.size)
@@ -58,7 +62,7 @@ class BenchmarkHarnessTest {
         val gemini = RecordingGeminiService()
         val harness = BenchmarkHarness(gemini)
 
-        val samples = harness.run(prompts = prompts, iterations = 5, cloudIterations = 2).last()
+        val samples = harness.run(prompts = prompts, engines = twoEngines, iterations = 5, cloudIterations = 2).last()
 
         // 2 prompts × 5 on-device, 2 prompts × 2 cloud — cloud sips the scarce free-tier budget.
         assertEquals(10, samples.count { it.engine == BenchmarkEngine.OnDevice })
@@ -74,7 +78,7 @@ class BenchmarkHarnessTest {
         val gemini = RecordingGeminiService()
         val harness = BenchmarkHarness(gemini)
 
-        val samples = harness.run(prompts = prompts, iterations = 3).last()
+        val samples = harness.run(prompts = prompts, engines = twoEngines, iterations = 3).last()
 
         val cold = samples.filter { it.isCold }
         assertEquals(2, cold.size)
@@ -91,8 +95,8 @@ class BenchmarkHarnessTest {
         val gemini = RecordingGeminiService()
         val harness = BenchmarkHarness(gemini)
 
-        harness.run(prompts = prompts, iterations = 2).last()
-        val second = harness.run(prompts = prompts, iterations = 2).last()
+        harness.run(prompts = prompts, engines = twoEngines, iterations = 2).last()
+        val second = harness.run(prompts = prompts, engines = twoEngines, iterations = 2).last()
 
         assertTrue(second.none { it.isCold })
     }
@@ -102,7 +106,7 @@ class BenchmarkHarnessTest {
         val gemini = RecordingGeminiService(failCloud = true)
         val harness = BenchmarkHarness(gemini)
 
-        val samples = harness.run(prompts = prompts, iterations = 2).last()
+        val samples = harness.run(prompts = prompts, engines = twoEngines, iterations = 2).last()
 
         val cloud = samples.filter { it.engine == BenchmarkEngine.Cloud }
         cloud.forEach {
@@ -120,7 +124,7 @@ class BenchmarkHarnessTest {
         val harness = BenchmarkHarness(gemini)
         val progress = mutableListOf<BenchmarkProgress>()
 
-        harness.run(prompts = prompts, iterations = 2, onProgress = { progress += it }).last()
+        harness.run(prompts = prompts, engines = twoEngines, iterations = 2, onProgress = { progress += it }).last()
 
         // 2 engines × 2 prompts × 2 iterations
         assertEquals(8, progress.size)

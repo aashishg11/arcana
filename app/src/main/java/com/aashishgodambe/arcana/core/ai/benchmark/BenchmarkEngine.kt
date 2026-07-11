@@ -12,5 +12,6 @@ import com.aashishgodambe.arcana.core.ai.model.RoutingHint
  */
 enum class BenchmarkEngine(val hint: RoutingHint, val label: String) {
     OnDevice(RoutingHint.OnlyOnDevice, "On-device"),
+    OwnModel(RoutingHint.OnlyOwnModel, "Your Gemma"),
     Cloud(RoutingHint.OnlyCloud, "Cloud"),
 }

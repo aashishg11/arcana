@@ -44,6 +44,13 @@ import com.aashishgodambe.arcana.ui.component.PillButton
 import com.aashishgodambe.arcana.ui.theme.ArcanaTheme
 import com.aashishgodambe.arcana.ui.theme.Mono
 
+/** Each benchmark engine's badge colour: iris Nano / gold own-model / cloud. */
+private fun BenchmarkEngine.badgeLocation(): InferenceLocation = when (this) {
+    BenchmarkEngine.OnDevice -> InferenceLocation.OnDevice
+    BenchmarkEngine.OwnModel -> InferenceLocation.OnDeviceOwnModel
+    BenchmarkEngine.Cloud -> InferenceLocation.Cloud
+}
+
 /** null → "n/a"; sub-second in ms, else seconds — Mono, so columns align. */
 private fun latency(ms: Long?): String = when {
     ms == null -> "n/a"
@@ -80,7 +87,7 @@ fun BenchmarkScreen(
 
             Spacer(Modifier.height(4.dp))
             Text(
-                "Gemini Nano on-device vs cloud — first-token and total latency, p50 / p95.",
+                "Nano (on-device) vs your Gemma (LiteRT q4) vs cloud — first-token and total latency, p50 / p95.",
                 fontSize = 14.sp, color = c.textDim, lineHeight = 20.sp,
             )
 
@@ -107,10 +114,11 @@ fun BenchmarkScreen(
 
             Spacer(Modifier.height(22.dp))
             Text(
-                "p50 / p95 over warm samples per cell (8 on-device, 4 cloud) — indicative, not production-grade " +
-                    "statistics. Cloud runs fewer iterations to conserve the free-tier budget. Cold-start (the " +
-                    "first call in the process) is shown separately in gold. On-device never reports token " +
-                    "counts; cloud does.",
+                "p50 / p95 over warm samples per cell (8 on-device / own-model, 4 cloud) — indicative, not " +
+                    "production-grade statistics. Cloud runs fewer iterations to conserve the free-tier budget. " +
+                    "Cold-start (first call in the process) is shown separately in gold; your Gemma's one-time " +
+                    "~3 s model load happens before inference and isn't included here. Nano never reports token " +
+                    "counts; your Gemma and cloud do. Own-model column appears only when the model is side-loaded.",
                 fontFamily = Mono, fontSize = 10.sp, color = c.textFaint, lineHeight = 15.sp,
             )
             Spacer(Modifier.height(40.dp))
@@ -192,7 +200,7 @@ private fun RunningCard(s: BenchmarkUiState) {
         )
         p?.let {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                InferenceBadge(if (it.engine == BenchmarkEngine.Cloud) InferenceLocation.Cloud else InferenceLocation.OnDevice)
+                InferenceBadge(it.engine.badgeLocation())
                 Text(it.prompt.label, fontFamily = Mono, fontSize = 12.sp, color = c.textDim)
             }
         }
@@ -205,7 +213,7 @@ private fun ResultsSection(results: List<BenchmarkResult>) {
     // Grouped by engine, preserving the aggregator's engine-then-prompt order.
     results.groupBy { it.engine }.forEach { (engine, cells) ->
         Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            InferenceBadge(if (engine == BenchmarkEngine.Cloud) InferenceLocation.Cloud else InferenceLocation.OnDevice)
+            InferenceBadge(engine.badgeLocation())
         }
         cells.forEach { r ->
             ResultCard(r)
@@ -267,10 +275,11 @@ private fun IdleHint() {
             .border(1.dp, c.hairline, RoundedCornerShape(18.dp)).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text("Same prompts, two engines", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = c.text)
+        Text("Same prompts, up to three engines", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = c.text)
         Text(
-            "A short and a grounded prompt run on Nano (on-device) and Gemini (cloud), forced to each engine " +
-                "via RoutingHint. Takes a minute or two — cloud calls are paced under the free-tier quota.",
+            "A short and a grounded prompt run on Nano (on-device), your Gemma (LiteRT q4), and Gemini (cloud), " +
+                "forced to each engine via RoutingHint. Takes a minute or two — cloud calls are paced under the " +
+                "free-tier quota; the own-model column shows only when the model is side-loaded.",
             fontFamily = Mono, fontSize = 11.sp, color = c.textFaint, lineHeight = 16.sp,
         )
     }

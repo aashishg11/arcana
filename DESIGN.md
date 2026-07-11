@@ -21,7 +21,7 @@ The capabilities being demonstrated, and the Arcana features that exercise them:
 | `genai-summarization` | Weekly portfolio summary feature |
 | `genai-writing-assistance` | Listing description writer (P2) |
 
-Beyond `ai-samples` but core to the portfolio narrative: ExecuTorch deployment of Gemma 3 1B (Week 7), replacing Gemini Nano for "Ask Arcana" chat while keeping the same `GeminiService` interface.
+Beyond `ai-samples` but core to the portfolio narrative: deploying my **own** Gemma 3 1B on-device as a **user-selectable** engine for "Ask Arcana," behind the same `GeminiService` interface. I self-quantized and deployed with ExecuTorch (Week 5), then evaluated Google's LiteRT-LM (Week 6) and measured both against Gemini Nano. LiteRT q4-on-CPU won (27.4 tok/s / 1077 MB; the Tensor G5 TPU is #7787-broken and its PowerVR GPU is a dead end), so it ships as `LiteRtGeminiService`; ExecuTorch stays a benchmark column and the "producer" capability. Nano remains the default (zero app-resident memory); the own-model is opt-in via a Settings engine picker (Week 7).
 
 ---
 
@@ -45,7 +45,7 @@ Same architectural pattern applied to five different concerns. Each interface is
 
 | Interface | Concern | v1 impls |
 |---|---|---|
-| `GeminiService` | LLM inference (text generation, embeddings) | `HybridGeminiService`, `FakeGeminiService` |
+| `GeminiService` | LLM inference (text generation, embeddings) | `HybridGeminiService`, `LiteRtGeminiService` (own-model, Week 7), `DelegatingGeminiService` (picker router), `FakeGeminiService` |
 | `PriceProvider` | Fetch current value plus market context | `EbayBrowsePriceProvider` |
 | `CollectionImporter` | Parse external collection exports | `HobbyDbCsvImporter` |
 | `CatalogProvider` | Look up collectible metadata by UPC, name, or image | `LocalCollectionCatalogProvider`, `UpcItemDbCatalogProvider`, `EbayBrowseCatalogProvider`, `CloudVisionCatalogProvider` |
@@ -216,7 +216,9 @@ enum class RoutingHint { Auto, PreferOnDevice, OnlyOnDevice, OnlyCloud }
 
 **`FakeGeminiService`** — tests and Compose previews. Returns configurable canned responses with configurable latency. Emits `Streaming` events on a coroutine delay.
 
-**`ExecuTorchGeminiService`** — Week 7 addition. Gemma 3 1B quantized via ExecuTorch. This is a full rewrite of the AI layer behind the same interface boundary, not a thin wrapper. The abstraction holds at the call site; the impl complexity is real.
+**`LiteRtGeminiService`** — Week 7 addition (the own-model engine; supersedes the placeholder `ExecuTorchGeminiService` this doc used to name — see the Week-6 decision). My self-quantized Gemma 3 1B (INT4) running in-process on the **CPU** via the MediaPipe LLM Inference runtime (LiteRT-LM under the hood), loading a **side-loaded** `.litertlm`. Implements `OwnModelEngine` (`GeminiService` + `isModelAvailable()`) so the picker can presence-gate it. A real rewrite of the AI layer behind the same interface boundary, not a thin wrapper — the abstraction holds at the call site; the impl complexity (native runtime, streaming listener → `Flow`, single-inference `Mutex`, side-load lifecycle) is real. CPU-only is deliberate: the Tensor G5 TPU (#7787) and PowerVR GPU are measured dead ends, re-confirmed in-app by the runtime's own accelerator probe.
+
+**`DelegatingGeminiService`** — Week 7 addition. The `GeminiService` actually injected app-wide. For `RoutingHint.Auto` it routes to whichever engine the Settings picker selected (Nano → `HybridGeminiService` prefer-on-device; Your Gemma → `LiteRtGeminiService`; Cloud → `HybridGeminiService` cloud). Explicit hints (`OnlyOnDevice`/`OnlyCloud`/`OnlyOwnModel`) bypass the selection — used by the benchmark harness so each engine stays one column on one seam.
 
 ---
 
