@@ -21,6 +21,9 @@ class ArcanaApplication : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
+        // App Check gates Firebase AI Logic cloud calls (auto-enforced on the Gemini API since early
+        // July 2026). Debug builds install the debug provider here; release ships a no-op twin.
+        installAppCheck(this)
         // Respect the user's Settings choice; the toggle schedules/cancels directly when changed.
         if (settings.weeklyWorkerEnabled.value) syncScheduler.schedule() else syncScheduler.cancel()
     }

@@ -88,9 +88,21 @@ dependencies {
     implementation(libs.firebase.ai)
     implementation(libs.firebase.ai.ondevice)
 
+    // App Check debug provider — debug builds only, so it can never reach a distributed build. Bypasses
+    // attestation for local dev now that Firebase auto-enforces App Check on the Gemini API. The
+    // src/debug installAppCheck() installs it; src/release ships a no-op twin.
+    debugImplementation(libs.firebase.appcheck)
+    debugImplementation(libs.firebase.appcheck.debug)
+
     // --- On-device AI (ML Kit GenAI Summarization — genai-summarization sample) ---
     implementation(libs.mlkit.genai.summarization)
     implementation(libs.androidx.concurrent.futures.ktx)   // ListenableFuture.await()
+
+    // --- On-device AI (ML Kit GenAI Prompt API — cascade Stage 2, Gemini Nano multimodal) ---
+    // Chosen over the fixed genai-image-description captioner: Gate A (Week 8 Day 1) found the captioner's
+    // output safety-classifier deterministically refuses fantasy/horror Funko imagery (ErrorCode 11),
+    // while a product-framed Prompt API request passes safety AND extracts identity + Pop number on-device.
+    implementation(libs.mlkit.genai.prompt)
 
     // --- On-device AI (own-model: self-quantized Gemma 3 1B via MediaPipe LLM Inference / LiteRT-LM) ---
     implementation(libs.mediapipe.tasks.genai)

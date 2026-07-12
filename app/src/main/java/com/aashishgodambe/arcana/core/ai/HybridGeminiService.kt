@@ -132,7 +132,10 @@ class HybridGeminiService : GeminiService {
 
     private companion object {
         const val TAG = "HybridGemini"
-        // gemini-2.0-flash-lite is retired; 2.5 is current. Also the on-device fallback target.
-        const val CLOUD_MODEL = "gemini-2.5-flash-lite"
+        // Model lineage: 2.0-flash-lite → 2.5-flash-lite → 3.1-flash-lite. As of July 2026, 2.5-flash-lite
+        // is deprecated (official shutdown 2026-10-16) and already reported returning 404 "no longer
+        // available" ahead of that date; 3.1-flash-lite is the named replacement. Also the on-device
+        // fallback target. TODO(week8+): move to Remote Config so the next shutdown isn't a code change.
+        const val CLOUD_MODEL = "gemini-3.1-flash-lite"
     }
 }
