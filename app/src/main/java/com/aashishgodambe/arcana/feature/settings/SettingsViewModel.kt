@@ -92,6 +92,7 @@ class SettingsViewModel @Inject constructor(
 
             val log = mutableListOf<String>()
             var subject: Bitmap? = null
+            var settled = false   // the description can trail Settled; don't flip back to "running"
             fun render(done: Boolean = false, summary: String? = null, telemetry: String? = null) {
                 _cascade.value = CascadeHarnessState(
                     running = !done, log = log.toList(), subject = subject,
@@ -113,6 +114,7 @@ class SettingsViewModel @Inject constructor(
                             "${state.layout.franchise ?: "?"} · ${state.layout.character ?: "?"}"
                         CascadeState.Matching -> log += "Matching catalog…"
                         is CascadeState.Settled -> {
+                            settled = true
                             val r = state.result
                             val summary = r.entry?.let {
                                 "${it.name} · ${it.sourceName} · ${(it.confidence * 100).toInt()}%" +
@@ -124,7 +126,7 @@ class SettingsViewModel @Inject constructor(
                         }
                         is CascadeState.Failed -> log += "✗ failed at ${state.stage}: ${state.cause.message}"
                     }
-                    render()
+                    render(done = settled)
                 }
             }.onFailure {
                 log += "✗ ${it.message}"

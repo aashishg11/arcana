@@ -102,9 +102,11 @@ class CaptureCascadeTest {
         assertEquals(52L, settled.entry?.matchedLocalId)
         assertTrue("should be confident", settled.confident)
         assertTrue("should be owned", settled.owned)
+        // Describe is off the critical path now (concurrent, may trail Settled), so it isn't in the
+        // settle telemetry; the critical-path stages are.
         assertTrue(
-            "telemetry should cover every stage",
-            settled.telemetry.perStageMs.keys.containsAll(listOf("segment", "describe", "ocr", "catalog")),
+            "telemetry should cover the critical-path stages",
+            settled.telemetry.perStageMs.keys.containsAll(listOf("ocr", "segment", "catalog")),
         )
     }
 }

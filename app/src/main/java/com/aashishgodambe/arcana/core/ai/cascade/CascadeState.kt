@@ -15,7 +15,11 @@ sealed interface CascadeState {
     /** Isolating the subject. [subject] is null until segmentation returns, then the masked bitmap. */
     data class Segmenting(val subject: Bitmap? = null) : CascadeState
 
-    /** On-device LLM streaming a description (best-effort; may be brief or never arrive if refused). */
+    /**
+     * On-device LLM streaming a description — best-effort corroboration off the critical path. It runs
+     * concurrently with the catalog walk, so it usually lands *after* [Settled] (or never, if Nano refuses
+     * a fantasy/horror box). The UI treats it as a late, optional line whose absence is normal.
+     */
     data class Describing(val text: String) : CascadeState
 
     /** OCR + layout done: the structured box read, incl. the Pop number for the floating callout. */
@@ -24,7 +28,11 @@ sealed interface CascadeState {
     /** Walking the catalog chain — backs the "Checking your collection… eBay…" feedback. */
     data object Matching : CascadeState
 
-    /** Terminal: the cascade settled (identified, best-effort, or unresolved), with telemetry. */
+    /**
+     * The identity settled (identified, best-effort, or unresolved), with telemetry. This is the outcome
+     * state, but not always the *last* emission: a trailing [Describing] may still follow as late
+     * corroboration before the flow completes.
+     */
     data class Settled(val result: CascadeResult) : CascadeState
 
     /** Terminal: a required stage failed hard (e.g. OCR threw). */

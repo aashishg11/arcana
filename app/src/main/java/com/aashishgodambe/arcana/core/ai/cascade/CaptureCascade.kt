@@ -11,6 +11,7 @@ import kotlinx.coroutines.channels.ProducerScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
@@ -91,45 +92,52 @@ class CaptureCascade @Inject constructor(
             // are best-effort and run after, where they can never block identification.
             send(CascadeState.Segmenting())
 
-            // 1. OCR + positional layout — burst-and-vote when the primary read is weak. The winning frame
-            //    becomes the one every later stage (describe, catalog, segment) reads.
+            // 1. OCR + positional layout — burst-and-vote when the primary read is weak. OCR runs FIRST:
+            //    invoking AICore (Nano) or segmentation before text recognition breaks the recognizer
+            //    process-wide. The winning frame feeds every later stage.
             val (bitmap, layout) = stage(timings, "ocr") { resolveFrame(frames) }
             send(CascadeState.Read(layout))
 
-            // 2. Describe (on-device LLM) on the full frame — best-effort, streaming, never fatal.
-            val llm = runCatching {
-                stage(timings, "describe") {
-                    describer.describe(bitmap) { partial -> trySend(CascadeState.Describing(partial)) }
-                }
-            }.onFailure { Log.i(TAG, "on-device description unavailable: ${it.message}") }.getOrNull()
-
-            // 3. Fuse the reads and walk the catalog chain (cloud escalation sees the full frame).
-            send(CascadeState.Matching)
-            val query = CascadeHintFusion.toQuery(layout, llm, image = bitmap)
-            val entry = stage(timings, "catalog") { catalogChain.identify(query) }
-
-            // 4. Segment last — best-effort masked subject for the UI outline; never blocks identification.
+            // 2. Segment right after OCR — best-effort masked subject for the UI's "it sees the thing"
+            //    outline. Sequenced before the LLM so the two on-device models never overlap.
             val subject = stage(timings, "segment") {
                 runCatching { segmenter.segment(bitmap).subjectBitmap }.getOrNull()
             }
             send(CascadeState.Segmenting(subject))
 
-            // 5. Settle.
-            val telemetry = CascadeTelemetry(
-                totalMs = SystemClock.elapsedRealtime() - started,
-                perStageMs = timings.toMap(),
-                resolvedOn = entry?.executedOn,
-            )
+            // 3. Describe (on-device LLM) OFF the critical path: launched concurrently with the catalog walk
+            //    so a fast local hit settles in ~2s instead of blocking ~6-7s on Nano. It streams as
+            //    best-effort corroboration that lands *after* the identity settles — or never, on a safety
+            //    refusal — so the UI renders its absence as normal. Nano's labels never feed identification
+            //    (unreliable; the positional OCR is authoritative).
+            val describeJob = launch {
+                runCatching {
+                    describer.describe(bitmap) { partial -> trySend(CascadeState.Describing(partial)) }
+                }.onFailure { Log.i(TAG, "on-device description unavailable: ${it.message}") }
+            }
+
+            // 4. Walk the catalog chain on the OCR read (cloud escalation sees the full frame).
+            send(CascadeState.Matching)
+            val entry = stage(timings, "catalog") {
+                catalogChain.identify(CascadeHintFusion.toQuery(layout, image = bitmap))
+            }
+
+            // 5. Settle the identity now; then let any trailing on-device description surface as a late line.
             send(
                 CascadeState.Settled(
                     CascadeResult(
                         entry = entry,
                         confident = entry != null && entry.confidence >= CONFIDENCE_GATE,
                         owned = entry?.matchedLocalId != null,
-                        telemetry = telemetry,
+                        telemetry = CascadeTelemetry(
+                            totalMs = SystemClock.elapsedRealtime() - started,
+                            perStageMs = timings.toMap(),
+                            resolvedOn = entry?.executedOn,
+                        ),
                     ),
                 ),
             )
+            describeJob.join()
         } catch (e: Exception) {
             Log.w(TAG, "cascade failed", e)
             send(CascadeState.Failed(stage = timings.keys.lastOrNull() ?: "segment", cause = e))
