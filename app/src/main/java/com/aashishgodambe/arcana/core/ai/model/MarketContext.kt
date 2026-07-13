@@ -24,7 +24,12 @@ data class ActiveListing(
     val priceCents: Int,
     val sellerRating: Float?,
     val ebayUrl: String,
-)
+    /** Fixed shipping in cents (0 = free); null when eBay only calculates it from the buyer's location. */
+    val shippingCents: Int? = null,
+) {
+    /** Item price plus known shipping — the sort/display basis; unknown (calculated) shipping counts as 0. */
+    val totalCents: Int get() = priceCents + (shippingCents ?: 0)
+}
 
 /** A completed sale. Populated only by sold-data-capable sources (PriceCharting); never by Browse. */
 data class SoldListing(

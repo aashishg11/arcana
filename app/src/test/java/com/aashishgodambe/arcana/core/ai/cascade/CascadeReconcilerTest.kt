@@ -13,10 +13,18 @@ class CascadeReconcilerTest {
         confidence = 0.9f,
     )
 
-    private fun layout(series: String?) = BoxLayout(
-        franchise = null, series = series, popNumber = "32", character = null, finish = null,
+    private fun layout(series: String? = null, franchise: String? = null) = BoxLayout(
+        franchise = franchise, series = series, popNumber = "32", character = null, finish = null,
         rarityOrExclusive = null, editionSize = null,
     )
+
+    @Test
+    fun `box franchise fills a blank catalog franchise (the disambiguator for generic names)`() {
+        // Owned Freddy Funko carries no "Popeye" in the collection; the box read supplies it so the price
+        // query can search "Freddy Funko as Popeye #32" rather than every Freddy Funko pop.
+        val r = CascadeReconciler.reconcile(entry(listOf("Pop! Digital")), layout(franchise = "Popeye"))
+        assertEquals("Popeye", r.franchise)
+    }
 
     @Test
     fun `box series wins over a stale catalog record`() {

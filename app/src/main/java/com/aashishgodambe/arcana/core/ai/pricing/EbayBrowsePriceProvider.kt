@@ -61,9 +61,10 @@ class EbayBrowsePriceProvider @Inject constructor(
                 medianSoldPriceCents = null,               // Browse can't see sold
                 medianActivePriceCents = median,
                 recentSales = emptyList(),
+                // Show the cheapest to actually buy — by total (price + known shipping), lowest first.
                 activeListings = listings
                     .map { it.toActiveListing(collectible) }
-                    .sortedByDescending { it.priceCents },
+                    .sortedBy { it.totalCents },
                 sampleSize = listings.size,
             ),
             fetchedAt = Instant.now(),
@@ -75,6 +76,7 @@ class EbayBrowsePriceProvider @Inject constructor(
         priceCents = priceCents,
         sellerRating = sellerFeedbackPct,
         ebayUrl = itemWebUrl ?: EbaySearch.url(collectible),   // fall back to the search page
+        shippingCents = shippingCents,
     )
 
     private companion object {

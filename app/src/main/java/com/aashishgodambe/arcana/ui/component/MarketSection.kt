@@ -73,6 +73,13 @@ fun MarketSection(market: MarketContext, buyUrl: String, modifier: Modifier = Mo
     }
 }
 
+/** How the total's shipping is composed: folded in, free, or extra-and-calculated. */
+private fun shippingNote(listing: ActiveListing): String = when (listing.shippingCents) {
+    null -> "+ shipping"        // eBay calculates it per location — the total shown is the item price only
+    0 -> "free shipping"
+    else -> "incl. shipping"    // the total already folds in the fixed shipping cost
+}
+
 @Composable
 private fun ListingRow(listing: ActiveListing, onView: () -> Unit) {
     val c = ArcanaTheme.colors
@@ -89,7 +96,10 @@ private fun ListingRow(listing: ActiveListing, onView: () -> Unit) {
                 Text("seller ${"%.1f".format(it)}%", fontFamily = Mono, fontSize = 11.sp, color = c.textFaint)
             }
         }
-        Text(formatUsdCents(listing.priceCents), fontFamily = Mono, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.text)
+        Column(horizontalAlignment = Alignment.End) {
+            Text(formatUsdCents(listing.totalCents), fontFamily = Mono, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = c.text)
+            Text(shippingNote(listing), fontFamily = Mono, fontSize = 9.sp, color = c.textFaint)
+        }
         Spacer(Modifier.width(8.dp))
         Text(
             "View ↗", fontFamily = Mono, fontSize = 11.sp, color = c.iris,

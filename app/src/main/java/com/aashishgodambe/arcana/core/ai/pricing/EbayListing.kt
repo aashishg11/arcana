@@ -15,4 +15,6 @@ data class EbayListing(
     val condition: String?,
     val sellerFeedbackPct: Float?,
     val itemWebUrl: String?,
+    /** Fixed shipping in cents (0 = free); null when eBay only calculates it from the buyer's location. */
+    val shippingCents: Int?,
 )

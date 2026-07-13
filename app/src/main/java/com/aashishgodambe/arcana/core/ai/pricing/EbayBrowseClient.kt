@@ -92,6 +92,10 @@ class EbayBrowseClient @Inject constructor() {
             val item = summaries.optJSONObject(i) ?: return@mapNotNull null
             val price = item.optJSONObject("price") ?: return@mapNotNull null
             val value = price.optString("value").toDoubleOrNull() ?: return@mapNotNull null
+            // Shipping is fixed (a known cost, incl. 0 = free) or CALCULATED per buyer location (no value).
+            val shippingCents = item.optJSONArray("shippingOptions")?.optJSONObject(0)
+                ?.optJSONObject("shippingCost")?.optString("value")?.toDoubleOrNull()
+                ?.let { Math.round(it * 100).toInt() }
             EbayListing(
                 title = item.optString("title"),
                 priceCents = Math.round(value * 100).toInt(),
@@ -100,6 +104,7 @@ class EbayBrowseClient @Inject constructor() {
                 sellerFeedbackPct = item.optJSONObject("seller")
                     ?.optString("feedbackPercentage")?.toFloatOrNull(),
                 itemWebUrl = item.optString("itemWebUrl").ifBlank { null },
+                shippingCents = shippingCents,
             )
         }
     }

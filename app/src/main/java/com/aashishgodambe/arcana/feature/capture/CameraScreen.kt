@@ -290,8 +290,9 @@ private fun PermissionRationale(
     }
 }
 
-/** How many frames the shutter captures for the escalation-burst vote (within the plan's 3–5). */
-private const val BURST_SIZE = 4
+/** How many frames the shutter captures for the escalation-burst vote — odd, so the majority vote can't
+ *  tie 2-2 and break arbitrarily toward a glyph misread (32→62) on a hard box. */
+private const val BURST_SIZE = 5
 
 /**
  * Capture [count] stills back-to-back and return the ones that succeeded (order preserved, primary first).
