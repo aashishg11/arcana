@@ -8,6 +8,15 @@ import com.aashishgodambe.arcana.core.ai.LiteRtGeminiService
 import com.aashishgodambe.arcana.core.ai.OwnModelEngine
 import com.aashishgodambe.arcana.core.ai.capability.DeviceCapabilityChecker
 import com.aashishgodambe.arcana.core.ai.capability.FirebaseDeviceCapabilityChecker
+import com.aashishgodambe.arcana.core.ai.cascade.CaptureCascade
+import com.aashishgodambe.arcana.core.ai.cascade.MlKitBarcodeScanner
+import com.aashishgodambe.arcana.core.ai.cascade.MlKitImageSegmenter
+import com.aashishgodambe.arcana.core.ai.cascade.MlKitTextExtractor
+import com.aashishgodambe.arcana.core.ai.cascade.NanoMultimodalDescriber
+import com.aashishgodambe.arcana.core.ai.catalog.CatalogProviderChain
+import com.aashishgodambe.arcana.core.ai.catalog.CloudMultimodalCatalogProvider
+import com.aashishgodambe.arcana.core.ai.catalog.LocalCollectionCatalogProvider
+import com.aashishgodambe.arcana.core.data.repository.CollectibleRepository
 import com.aashishgodambe.arcana.core.data.settings.SettingsStore
 import dagger.Module
 import dagger.Provides
@@ -45,4 +54,25 @@ object AiModule {
     @Provides
     @Singleton
     fun provideDeviceCapabilityChecker(): DeviceCapabilityChecker = FirebaseDeviceCapabilityChecker()
+
+    /**
+     * The capture-cascade engine (Week 8), wired with its stage seams and the ordered catalog chain
+     * (local collection first → cloud multimodal escalation). Week 9's capture screen injects this and
+     * renders the emitted [com.aashishgodambe.arcana.core.ai.cascade.CascadeState] flow.
+     */
+    @Provides
+    @Singleton
+    fun provideCaptureCascade(repository: CollectibleRepository): CaptureCascade =
+        CaptureCascade(
+            segmenter = MlKitImageSegmenter(),
+            describer = NanoMultimodalDescriber(),
+            textExtractor = MlKitTextExtractor(),
+            barcodeScanner = MlKitBarcodeScanner(),
+            catalogChain = CatalogProviderChain(
+                listOf(
+                    LocalCollectionCatalogProvider(repository),
+                    CloudMultimodalCatalogProvider(),
+                ),
+            ),
+        )
 }

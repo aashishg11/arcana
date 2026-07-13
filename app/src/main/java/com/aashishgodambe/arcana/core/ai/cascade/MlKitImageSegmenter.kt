@@ -22,32 +22,35 @@ import javax.inject.Inject
  */
 class MlKitImageSegmenter @Inject constructor() : ImageSegmenter {
 
-    private val segmenter = SubjectSegmentation.getClient(
-        SubjectSegmenterOptions.Builder()
-            .enableForegroundBitmap()
-            .build(),
-    )
-
     override suspend fun segment(bitmap: Bitmap): SegmentationResult = withContext(Dispatchers.IO) {
         val image = InputImage.fromBitmap(bitmap, 0)
-        // The segmentation model is an optional Play-services module fetched on first use; process()
-        // fails fast with "Waiting for ... module to be downloaded" until it's ready (the download runs
-        // in the background). Retry within a bounded window so first-ever use just waits for the one-time
-        // download instead of erroring.
-        repeat(MAX_ATTEMPTS) { attempt ->
-            try {
-                val result = Tasks.await(segmenter.process(image))
-                return@withContext SegmentationResult(subjectBitmap = result.foregroundBitmap)
-            } catch (e: Exception) {
-                if (!isModuleDownloading(e)) throw e
-                Log.i(TAG, "segmentation module still downloading (attempt ${attempt + 1}/$MAX_ATTEMPTS)")
-                delay(RETRY_DELAY_MS)
+        // Create the client per call and close it before returning: leaving the segmenter open holds a
+        // native ML Kit resource that breaks a subsequent text recognizer in the same cascade run.
+        val segmenter = SubjectSegmentation.getClient(
+            SubjectSegmenterOptions.Builder().enableForegroundBitmap().build(),
+        )
+        try {
+            // The segmentation model is an optional Play-services module fetched on first use; process()
+            // fails fast with "Waiting for ... module to be downloaded" until it's ready (the download runs
+            // in the background). Retry within a bounded window so first-ever use waits for the one-time
+            // download instead of erroring.
+            repeat(MAX_ATTEMPTS) { attempt ->
+                try {
+                    val result = Tasks.await(segmenter.process(image))
+                    return@withContext SegmentationResult(subjectBitmap = result.foregroundBitmap)
+                } catch (e: Exception) {
+                    if (!isModuleDownloading(e)) throw e
+                    Log.i(TAG, "segmentation module still downloading (attempt ${attempt + 1}/$MAX_ATTEMPTS)")
+                    delay(RETRY_DELAY_MS)
+                }
             }
+            // Not ready after the wait window — treat as "no subject" so the cascade carries on; the module
+            // will be ready on a later capture.
+            Log.w(TAG, "segmentation module not ready after ${MAX_ATTEMPTS * RETRY_DELAY_MS}ms; skipping")
+            SegmentationResult(subjectBitmap = null)
+        } finally {
+            segmenter.close()
         }
-        // Still not ready after the wait window — treat as "no subject" so the cascade falls back to the
-        // full frame rather than failing; the module will be ready on a later capture.
-        Log.w(TAG, "segmentation module not ready after ${MAX_ATTEMPTS * RETRY_DELAY_MS}ms; skipping")
-        SegmentationResult(subjectBitmap = null)
     }
 
     private fun isModuleDownloading(e: Throwable): Boolean =

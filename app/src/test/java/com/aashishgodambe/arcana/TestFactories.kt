@@ -12,6 +12,7 @@ fun testFunko(
     nft: Boolean = false,
     popNumber: String? = null,
     series: List<String> = emptyList(),
+    upc: String = "0",
 ) = FunkoPop(
     localId = id,
     name = name,
@@ -27,7 +28,7 @@ fun testFunko(
     dateAdded = LocalDate.of(2023, 1, 1),
     pricePaidCents = null,
     storageLocation = null,
-    upc = "0",
+    upc = upc,
     popNumber = popNumber,
     exclusiveTo = null,
     isNftRedeemable = nft,

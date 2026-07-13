@@ -1,5 +1,9 @@
 package com.aashishgodambe.arcana.feature.settings
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -34,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
@@ -161,7 +166,7 @@ fun SettingsScreen(
                 EngineDivider()
                 EngineOption(
                     title = "Cloud",
-                    subtitle = "Gemini 2.5 Flash-Lite · cloud fallback",
+                    subtitle = "Gemini 3.1 Flash-Lite · cloud fallback",
                     selected = askEngine == AskEngine.Cloud,
                     enabled = true,
                     accent = c.cloud,
@@ -197,6 +202,8 @@ fun SettingsScreen(
             if (BuildConfig.DEBUG) {
                 Spacer(Modifier.height(10.dp))
                 LiteRtSmokeCard()
+                Spacer(Modifier.height(10.dp))
+                CascadeHarnessCard(vm)
             }
 
             // --- About ---
@@ -347,6 +354,65 @@ private fun LiteRtSmokeCard() {
                     }
                     .padding(horizontal = 12.dp, vertical = 6.dp),
             )
+        }
+    }
+}
+
+@Composable
+private fun CascadeHarnessCard(vm: SettingsViewModel) {
+    val c = ArcanaTheme.colors
+    val state by vm.cascade.collectAsStateWithLifecycle()
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        uri?.let { vm.runCascade(it) }
+    }
+
+    SettingCard {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Capture cascade", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.text)
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    "Pick a Funko box photo and watch it identify — segment · describe · OCR · match.",
+                    fontFamily = Mono, fontSize = 11.sp, color = c.textFaint, lineHeight = 15.sp,
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Text(
+                if (state.running) "Running…" else "Pick",
+                fontFamily = Mono, fontSize = 12.sp, fontWeight = FontWeight.Medium,
+                color = if (state.running) c.textDim else c.iris,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .border(1.dp, c.hairline, RoundedCornerShape(8.dp))
+                    .clickable(enabled = !state.running) {
+                        picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    }
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+            )
+        }
+
+        state.subject?.let { subject ->
+            Spacer(Modifier.height(10.dp))
+            Image(
+                bitmap = subject.asImageBitmap(),
+                contentDescription = "segmented subject",
+                modifier = Modifier.height(120.dp).clip(RoundedCornerShape(10.dp)),
+            )
+        }
+
+        if (state.log.isNotEmpty()) {
+            Spacer(Modifier.height(10.dp))
+            state.log.forEach { line ->
+                Text(line, fontFamily = Mono, fontSize = 11.sp, color = c.textDim, lineHeight = 16.sp)
+            }
+        }
+
+        state.summary?.let { summary ->
+            Spacer(Modifier.height(8.dp))
+            Text(summary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = c.iris)
+            state.telemetry?.let { t ->
+                Text(t, fontFamily = Mono, fontSize = 10.sp, color = c.textFaint, lineHeight = 14.sp)
+            }
         }
     }
 }

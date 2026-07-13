@@ -107,6 +107,7 @@ dependencies {
     // --- On-device ML (ML Kit Vision — cascade deterministic stages: OCR, segmentation) ---
     implementation(libs.mlkit.text.recognition)   // Latin, bundled model (offline, no download)
     implementation(libs.mlkit.subject.segmentation) // subject mask; model downloaded on first use
+    implementation(libs.mlkit.barcode.scanning)   // UPC/EAN decode for the barcode fallback path
 
     // --- On-device AI (own-model: self-quantized Gemma 3 1B via MediaPipe LLM Inference / LiteRT-LM) ---
     implementation(libs.mediapipe.tasks.genai)

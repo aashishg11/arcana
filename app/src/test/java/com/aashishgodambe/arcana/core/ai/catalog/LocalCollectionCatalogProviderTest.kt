@@ -17,7 +17,7 @@ import org.junit.Test
 class LocalCollectionCatalogProviderTest {
 
     private val collection = listOf(
-        testFunko(52, name = "Fire Nation Aang", popNumber = "52",
+        testFunko(52, name = "Fire Nation Aang", popNumber = "52", upc = "889698685146",
             series = listOf("Pop! Digital", "Avatar Legends x Funko Series 1")),
         testFunko(30, name = "Popeye With Swee'Pea", popNumber = "30",
             series = listOf("Pop! Digital", "Series 1")),
@@ -65,5 +65,14 @@ class LocalCollectionCatalogProviderTest {
     @Test
     fun returns_null_without_a_pop_number() = runBlocking {
         assertNull(provider.lookup(CatalogQuery(popNumber = null, franchise = "Avatar", character = "Aang")))
+    }
+
+    @Test
+    fun matches_by_upc_for_the_barcode_path() = runBlocking {
+        // EAN-13 form (leading zero) must still match the stored UPC-A "889698685146".
+        val match = provider.lookup(CatalogQuery(popNumber = null, franchise = null, character = null, upc = "0889698685146"))
+        assertNotNull(match)
+        assertEquals(52L, match!!.matchedLocalId)
+        assertTrue("UPC is a strong key", match.confidence >= 0.9f)
     }
 }

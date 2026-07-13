@@ -22,10 +22,18 @@ class LocalCollectionCatalogProvider @Inject constructor(
     override val sourceName = "Your collection"
 
     override suspend fun lookup(query: CatalogQuery): CatalogEntry? {
+        val owned = repository.allCollectibles().filterIsInstance<FunkoPop>()
+
+        // UPC is a globally-unique key (the barcode path). Match it first, tolerating UPC-A vs EAN-13
+        // leading-zero differences.
+        query.upc?.takeIf { it.isNotBlank() }?.let { upc ->
+            val target = upc.trimStart('0')
+            owned.firstOrNull { it.upc.trimStart('0') == target }
+                ?.let { return it.toEntry(sourceName, UPC_CONFIDENCE) }
+        }
+
         val number = query.popNumber?.takeIf { it.isNotBlank() } ?: return null
-        val sameNumber = repository.allCollectibles()
-            .filterIsInstance<FunkoPop>()
-            .filter { it.popNumber == number }
+        val sameNumber = owned.filter { it.popNumber == number }
         if (sameNumber.isEmpty()) return null
 
         val (pop, confidence) = sameNumber
@@ -77,6 +85,7 @@ class LocalCollectionCatalogProvider @Inject constructor(
     )
 
     private companion object {
+        const val UPC_CONFIDENCE = 0.95f      // UPC is globally unique — a strong match
         const val NUMBER_ONLY = 0.6f          // exact number, no corroborating context
         const val FRANCHISE_BONUS = 0.25f
         const val CHARACTER_BONUS = 0.2f

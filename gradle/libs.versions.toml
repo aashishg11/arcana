@@ -26,6 +26,7 @@ mlkitGenaiSummarization = "1.0.0-beta1"
 mlkitGenaiPrompt = "1.0.0-beta2"
 mlkitTextRecognition = "16.0.1"
 mlkitSubjectSegmentation = "16.0.0-beta1"
+mlkitBarcodeScanning = "17.3.0"
 mediapipeGenai = "0.10.35"
 concurrentFutures = "1.2.0"
 work = "2.10.3"
@@ -59,6 +60,7 @@ mlkit-genai-summarization = { group = "com.google.mlkit", name = "genai-summariz
 mlkit-genai-prompt = { group = "com.google.mlkit", name = "genai-prompt", version.ref = "mlkitGenaiPrompt" }
 mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition", version.ref = "mlkitTextRecognition" }
 mlkit-subject-segmentation = { group = "com.google.android.gms", name = "play-services-mlkit-subject-segmentation", version.ref = "mlkitSubjectSegmentation" }
+mlkit-barcode-scanning = { group = "com.google.mlkit", name = "barcode-scanning", version.ref = "mlkitBarcodeScanning" }
 mediapipe-tasks-genai = { group = "com.google.mediapipe", name = "tasks-genai", version.ref = "mediapipeGenai" }
 androidx-concurrent-futures-ktx = { group = "androidx.concurrent", name = "concurrent-futures-ktx", version.ref = "concurrentFutures" }
 androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
