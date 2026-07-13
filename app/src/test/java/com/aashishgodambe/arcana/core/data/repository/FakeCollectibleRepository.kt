@@ -116,5 +116,10 @@ class FakeCollectibleRepository(items: List<Collectible> = emptyList()) : Collec
         return updated.quantity
     }
 
+    override suspend fun delete(localId: Long) {
+        byId.remove(localId)
+        snapshots.remove(localId)
+    }
+
     override suspend fun listNames(): List<String> = listNames
 }

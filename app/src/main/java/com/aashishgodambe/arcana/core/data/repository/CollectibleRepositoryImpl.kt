@@ -193,6 +193,13 @@ class CollectibleRepositoryImpl @Inject constructor(
         collectibleDao.quantityOf(localId)
     }
 
+    override suspend fun delete(localId: Long) = db.withTransaction {
+        // Snapshots and series links have no cascading FK, so drop them first; funko_metadata cascades.
+        valueSnapshotDao.deleteForCollectible(localId)
+        seriesDao.deleteCrossRefsFor(localId)
+        collectibleDao.deleteById(localId)
+    }
+
     override suspend fun listNames(): List<String> = collectibleDao.listNames()
 }
 

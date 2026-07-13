@@ -68,6 +68,10 @@ interface CollectibleDao {
     @Query("UPDATE collectibles SET quantity = quantity + 1 WHERE localId = :id")
     suspend fun incrementQuantity(id: Long)
 
+    /** Delete a collectible; its funko_metadata row cascades (FK), snapshots/series links do not. */
+    @Query("DELETE FROM collectibles WHERE localId = :id")
+    suspend fun deleteById(id: Long)
+
     @Query("SELECT quantity FROM collectibles WHERE localId = :id")
     suspend fun quantityOf(id: Long): Int
 

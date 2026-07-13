@@ -98,6 +98,9 @@ interface CollectibleRepository {
     /** "Add another to my collection" — increments an owned item's quantity; returns the new count. */
     suspend fun incrementQuantity(localId: Long): Int
 
+    /** Remove a collectible entirely — its metadata, series links, and value snapshots go with it. */
+    suspend fun delete(localId: Long)
+
     /** The existing non-empty list names, for the capture save-to-list picker. */
     suspend fun listNames(): List<String>
 }

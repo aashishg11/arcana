@@ -19,11 +19,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -144,6 +146,17 @@ class DetailViewModel @Inject constructor(
     }
 
     fun consumeSnapshotMessage() { _snapshotMessage.value = null }
+
+    private val _deleted = MutableStateFlow(false)
+    val deleted: StateFlow<Boolean> = _deleted.asStateFlow()
+
+    /** Delete this collectible from the collection; the screen navigates back once it's gone. */
+    fun delete() {
+        viewModelScope.launch {
+            repository.delete(localId)
+            _deleted.value = true
+        }
+    }
 }
 
 @Composable
@@ -153,6 +166,11 @@ fun DetailScreen(onBack: () -> Unit, vm: DetailViewModel = hiltViewModel()) {
     val market by vm.market.collectAsStateWithLifecycle()
     val snapshotting by vm.snapshotting.collectAsStateWithLifecycle()
     val snapshotMessage by vm.snapshotMessage.collectAsStateWithLifecycle()
+    val deleted by vm.deleted.collectAsStateWithLifecycle()
+
+    // Once deleted, leave Detail — the item no longer exists.
+    LaunchedEffect(deleted) { if (deleted) onBack() }
+
     // Dispatch through the sealed domain type — adding FigPin/PokemonCard later breaks this `when`.
     when (val item = collectible) {
         null -> Box(Modifier.fillMaxSize().background(ArcanaTheme.colors.bg), contentAlignment = Alignment.Center) {
@@ -166,6 +184,7 @@ fun DetailScreen(onBack: () -> Unit, vm: DetailViewModel = hiltViewModel()) {
             snapshotMessage = snapshotMessage,
             onSnapshot = vm::snapshotPrice,
             onSnapshotMessageShown = vm::consumeSnapshotMessage,
+            onDelete = vm::delete,
             onBack = onBack,
         )
     }
@@ -181,10 +200,12 @@ private fun FunkoDetail(
     snapshotMessage: String?,
     onSnapshot: () -> Unit,
     onSnapshotMessageShown: () -> Unit,
+    onDelete: () -> Unit,
     onBack: () -> Unit,
 ) {
     val c = ArcanaTheme.colors
     val snackbarState = remember { SnackbarHostState() }
+    var confirmDelete by remember { mutableStateOf(false) }
     LaunchedEffect(snapshotMessage) {
         snapshotMessage?.let { snackbarState.showSnackbar(it); onSnapshotMessageShown() }
     }
@@ -236,10 +257,33 @@ private fun FunkoDetail(
             Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                 Text("Add another", color = c.textDim, fontSize = 13.sp)
                 Text("  ·  ", color = c.textFaint, fontSize = 13.sp)
-                Text("Delete from collection", color = c.down, fontSize = 13.sp)
+                Text(
+                    "Delete from collection", color = c.down, fontSize = 13.sp,
+                    modifier = Modifier.clickable { confirmDelete = true },
+                )
             }
             Spacer(Modifier.height(14.dp))
         }
+    }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            containerColor = c.surface,
+            title = { Text("Delete this pop?", color = c.text, fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "“${pop.name}” and its value history will be removed from your collection. This can't be undone.",
+                    color = c.textDim, fontSize = 14.sp, lineHeight = 20.sp,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { confirmDelete = false; onDelete() }) {
+                    Text("Delete", color = c.down, fontWeight = FontWeight.SemiBold)
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel", color = c.textDim) } },
+        )
     }
 }
 

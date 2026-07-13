@@ -15,6 +15,7 @@ class EbayPriceMathTest {
             condition = "New",
             sellerFeedbackPct = 99.0f,
             itemWebUrl = null,
+            shippingCents = null,
         )
 
     @Test

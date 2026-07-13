@@ -20,6 +20,10 @@ abstract class SeriesDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     abstract suspend fun insertCrossRef(crossRef: CollectibleSeriesCrossRef)
 
+    /** Drop a collectible's series links on delete (the cross-ref table has no cascading FK). */
+    @Query("DELETE FROM collectible_series WHERE collectibleLocalId = :id")
+    abstract suspend fun deleteCrossRefsFor(id: Long)
+
     /**
      * Insert-or-get the canonical series row, returning its id. The unique index on `name` makes
      * the insert a no-op (rowId -1) when the series already exists, in which case we look it up.

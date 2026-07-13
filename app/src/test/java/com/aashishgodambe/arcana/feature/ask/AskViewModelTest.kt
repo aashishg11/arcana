@@ -140,5 +140,9 @@ class AskViewModelTest {
             items: List<ImportedItem>,
             onProgress: (written: Int, item: ImportedItem) -> Unit,
         ): Int = 0
+        override suspend fun saveCaptured(item: ImportedItem): Long = 0
+        override suspend fun incrementQuantity(localId: Long): Int = 0
+        override suspend fun listNames(): List<String> = emptyList()
+        override suspend fun delete(localId: Long) = Unit
     }
 }
