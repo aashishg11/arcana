@@ -28,6 +28,28 @@ class EbayPriceMathTest {
     }
 
     @Test
+    fun `query includes the distinguishing product line to isolate the pop`() {
+        // Without "Die-Cast" the search returns every Captain America pop (median ~$35); with it, the
+        // actual Die-Cast #01 (~$77).
+        assertEquals(
+            "Funko Pop Die-Cast Captain America 01",
+            EbayPriceMath.funkoQuery("Captain America", "01", listOf("Pop! Die-Cast", "Marvel")),
+        )
+        assertEquals(
+            "Funko Pop Digital Freddy Funko 32",
+            EbayPriceMath.funkoQuery("Freddy Funko", "32", listOf("Pop! Vinyl", "Pop! Digital")),
+        )
+    }
+
+    @Test
+    fun `plain vinyl line is omitted as noise`() {
+        assertEquals(
+            "Funko Pop Spider-Man 03",
+            EbayPriceMath.funkoQuery("Spider-Man", "03", listOf("Pop! Vinyl")),
+        )
+    }
+
+    @Test
     fun `median of odd count is the middle`() {
         val m = EbayPriceMath.medianCents(listOf(listing(1000), listing(3000), listing(2000)))
         assertEquals(2000, m)

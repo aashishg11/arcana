@@ -38,7 +38,7 @@ class EbayBrowsePriceProvider @Inject constructor(
         if (!client.isConfigured) return PriceResult.Unavailable("eBay not configured")
         val pop = collectible as? FunkoPop ?: return PriceResult.Unavailable("unsupported category")
 
-        val query = EbayPriceMath.funkoQuery(pop.name, pop.popNumber)
+        val query = EbayPriceMath.funkoQuery(pop.name, pop.popNumber, pop.series)
         val listings = try {
             client.searchActiveListings(query)
         } catch (e: EbayRateLimitException) {
