@@ -46,10 +46,6 @@ class CaptureReviewViewModel @Inject constructor(
     private val _state = MutableStateFlow(CaptureReviewUiState())
     val state: StateFlow<CaptureReviewUiState> = _state.asStateFlow()
 
-    // The engine emits Segmenting() once as kickoff (before OCR) and again after segment (after Read);
-    // this disambiguates the two so the outline beat only lights once segmentation has actually returned.
-    private var readSeen = false
-
     init {
         start()
     }
@@ -73,37 +69,11 @@ class CaptureReviewViewModel @Inject constructor(
                 is CapturePayload.Image -> cascade.identify(payload.frames)
                 is CapturePayload.Barcode -> cascade.identifyFromBarcode(payload.frame)
             }
-            flow.collect { reduce(it) }
-        }
-    }
-
-    /** Fold one cascade emission into the UI state — the screen renders the beats from these fields. */
-    private fun reduce(cascadeState: CascadeState) {
-        when (cascadeState) {
-            is CascadeState.Segmenting ->
-                _state.update {
-                    // Only the post-OCR emission means segmentation actually ran.
-                    if (readSeen) it.copy(subject = cascadeState.subject ?: it.subject, subjectReady = true) else it
-                }
-
-            is CascadeState.Read -> {
-                readSeen = true
-                _state.update { it.copy(popNumber = cascadeState.layout.popNumber) }
+            flow.collect { cascadeState ->
+                _state.update { reduceCapture(it, cascadeState) }
+                // The one side-effect: kick the market fetch once identified (kept out of the pure reducer).
+                if (cascadeState is CascadeState.Settled) cascadeState.result.entry?.let { fetchMarket(it) }
             }
-
-            is CascadeState.Describing ->
-                _state.update { it.copy(description = cascadeState.text) }
-
-            CascadeState.Matching ->
-                _state.update { it.copy(matching = true) }
-
-            is CascadeState.Settled -> {
-                _state.update { it.copy(settled = cascadeState.result) }
-                cascadeState.result.entry?.let { fetchMarket(it) }
-            }
-
-            is CascadeState.Failed ->
-                _state.update { it.copy(failure = "Couldn't identify (${cascadeState.stage})") }
         }
     }
 
@@ -132,31 +102,7 @@ class CaptureReviewViewModel @Inject constructor(
         if (_state.value.saving) return
         _state.update { it.copy(saving = true) }
         viewModelScope.launch {
-            val item = ImportedItem(
-                sourceId = entry.externalId,
-                sourceName = "Arcana Capture",
-                listName = listName.trim().ifBlank { null },
-                category = CollectibleCategory.Funko,
-                name = entry.name,
-                brand = "Funko",
-                quantity = 1,
-                estimatedValueCents = _state.value.market?.medianActivePriceCents ?: 0,
-                itemCondition = null,
-                packagingCondition = null,
-                dateAdded = LocalDate.now(),
-                imageUrl = entry.imageUrl,
-                series = entry.series,
-                productionTags = emptyList(),
-                funkoMetadata = FunkoImportMetadata(
-                    upc = null,
-                    popNumber = entry.number,
-                    exclusiveTo = entry.exclusiveTo,
-                    isNftRedeemable = entry.exclusiveTo?.contains("nft", ignoreCase = true) == true,
-                    scale = null,
-                    releaseDate = null,
-                    hdbcNumber = null,
-                ),
-            )
+            val item = capturedItem(entry, listName, _state.value.market?.medianActivePriceCents ?: 0)
             _state.update { it.copy(saving = false, savedId = repository.saveCaptured(item)) }
         }
     }
@@ -189,6 +135,54 @@ class CaptureReviewViewModel @Inject constructor(
 }
 
 /**
+ * Pure reduction of one [CascadeState] into the Review UI state — the beat mapping the screen renders.
+ * Side-effect-free (the VM triggers the market fetch on Settled), so it's unit-tested device-free over
+ * fake cascade flows. The engine emits Segmenting twice (kickoff, then after OCR); [CaptureReviewUiState.readSeen]
+ * disambiguates so the outline beat only lights once segmentation has actually run.
+ */
+internal fun reduceCapture(state: CaptureReviewUiState, cascadeState: CascadeState): CaptureReviewUiState =
+    when (cascadeState) {
+        is CascadeState.Segmenting ->
+            if (state.readSeen) state.copy(subject = cascadeState.subject ?: state.subject, subjectReady = true) else state
+        is CascadeState.Read -> state.copy(popNumber = cascadeState.layout.popNumber, readSeen = true)
+        is CascadeState.Describing -> state.copy(description = cascadeState.text)
+        CascadeState.Matching -> state.copy(matching = true)
+        is CascadeState.Settled -> state.copy(settled = cascadeState.result)
+        is CascadeState.Failed -> state.copy(failure = "Couldn't identify (${cascadeState.stage})")
+    }
+
+/**
+ * The [ImportedItem] a captured pop is saved as: an ArcanaCapture-origin Funko into [listName], valued at
+ * the eBay [valueCents]. NFT-redeemable is inferred from an "NFT" exclusivity label. Pure → unit-tested.
+ */
+internal fun capturedItem(entry: CatalogEntry, listName: String, valueCents: Int): ImportedItem =
+    ImportedItem(
+        sourceId = entry.externalId,
+        sourceName = "Arcana Capture",
+        listName = listName.trim().ifBlank { null },
+        category = CollectibleCategory.Funko,
+        name = entry.name,
+        brand = "Funko",
+        quantity = 1,
+        estimatedValueCents = valueCents,
+        itemCondition = null,
+        packagingCondition = null,
+        dateAdded = LocalDate.now(),
+        imageUrl = entry.imageUrl,
+        series = entry.series,
+        productionTags = emptyList(),
+        funkoMetadata = FunkoImportMetadata(
+            upc = null,
+            popNumber = entry.number,
+            exclusiveTo = entry.exclusiveTo,
+            isNftRedeemable = entry.exclusiveTo?.contains("nft", ignoreCase = true) == true,
+            scale = null,
+            releaseDate = null,
+            hdbcNumber = null,
+        ),
+    )
+
+/**
  * The capture Review UI state — a flat projection of the cascade stream that the animated hero renders as
  * beats. [subjectReady]/[popNumber]/[matching] drive the running animation (outline, #NNN callout, chain
  * lines); [settled] drives the settled card. [description] is the late/optional corroboration line.
@@ -197,6 +191,7 @@ data class CaptureReviewUiState(
     val frame: Bitmap? = null,
     val subject: Bitmap? = null,
     val subjectReady: Boolean = false,   // segmentation returned (subject may still be null)
+    val readSeen: Boolean = false,       // OCR Read emitted — disambiguates the two Segmenting emissions
     val popNumber: String? = null,       // OCR read — the #NNN callout
     val matching: Boolean = false,       // catalog walk started
     val description: String? = null,     // trailing on-device description
