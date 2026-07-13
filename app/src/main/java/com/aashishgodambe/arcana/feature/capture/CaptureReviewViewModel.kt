@@ -33,6 +33,10 @@ class CaptureReviewViewModel @Inject constructor(
     private val _state = MutableStateFlow(CaptureReviewUiState())
     val state: StateFlow<CaptureReviewUiState> = _state.asStateFlow()
 
+    // The engine emits Segmenting() once as kickoff (before OCR) and again after segment (after Read);
+    // this disambiguates the two so the outline beat only lights once segmentation has actually returned.
+    private var readSeen = false
+
     init {
         start()
     }
@@ -41,7 +45,7 @@ class CaptureReviewViewModel @Inject constructor(
         val payload = store.take()
         if (payload == null) {
             // No frame to identify (e.g. a stale re-entry after process return) — nothing to render.
-            _state.value = CaptureReviewUiState(running = false, failure = "Nothing to identify")
+            _state.value = CaptureReviewUiState(failure = "Nothing to identify")
             return
         }
 
@@ -49,7 +53,7 @@ class CaptureReviewViewModel @Inject constructor(
             is CapturePayload.Image -> payload.frames.first()
             is CapturePayload.Barcode -> payload.frame
         }
-        _state.value = CaptureReviewUiState(frame = frame, running = true)
+        _state.value = CaptureReviewUiState(frame = frame, barcodePath = payload is CapturePayload.Barcode)
 
         viewModelScope.launch {
             val flow = when (payload) {
@@ -60,57 +64,50 @@ class CaptureReviewViewModel @Inject constructor(
         }
     }
 
-    /** Fold one cascade emission into the UI state. */
+    /** Fold one cascade emission into the UI state — the screen renders the beats from these fields. */
     private fun reduce(cascadeState: CascadeState) {
         when (cascadeState) {
             is CascadeState.Segmenting ->
-                _state.update { s ->
-                    s.copy(
-                        subject = cascadeState.subject ?: s.subject,
-                        statusLines = s.withStatus("Segmenting subject…"),
-                    )
+                _state.update {
+                    // Only the post-OCR emission means segmentation actually ran.
+                    if (readSeen) it.copy(subject = cascadeState.subject ?: it.subject, subjectReady = true) else it
                 }
 
-            is CascadeState.Read ->
-                _state.update { s ->
-                    s.copy(
-                        popNumber = cascadeState.layout.popNumber,
-                        statusLines = s.withStatus("Box number read · #${cascadeState.layout.popNumber ?: "?"}"),
-                    )
-                }
+            is CascadeState.Read -> {
+                readSeen = true
+                _state.update { it.copy(popNumber = cascadeState.layout.popNumber) }
+            }
 
             is CascadeState.Describing ->
                 _state.update { it.copy(description = cascadeState.text) }
 
             CascadeState.Matching ->
-                _state.update { it.copy(statusLines = it.withStatus("Checking your collection…")) }
+                _state.update { it.copy(matching = true) }
 
             is CascadeState.Settled ->
-                _state.update { it.copy(running = false, settled = cascadeState.result) }
+                _state.update { it.copy(settled = cascadeState.result) }
 
             is CascadeState.Failed ->
-                _state.update {
-                    it.copy(running = false, failure = "Couldn't identify (${cascadeState.stage})")
-                }
+                _state.update { it.copy(failure = "Couldn't identify (${cascadeState.stage})") }
         }
     }
 }
 
 /**
- * The capture Review UI state — a flat projection of the cascade stream. Carries more than Day 1 renders
- * ([subject], resolved location via [settled]) so Days 2–4 extend this rather than reshape it.
+ * The capture Review UI state — a flat projection of the cascade stream that the animated hero renders as
+ * beats. [subjectReady]/[popNumber]/[matching] drive the running animation (outline, #NNN callout, chain
+ * lines); [settled] drives the settled card. [description] is the late/optional corroboration line.
  */
 data class CaptureReviewUiState(
     val frame: Bitmap? = null,
     val subject: Bitmap? = null,
-    val statusLines: List<String> = emptyList(),
-    val popNumber: String? = null,
-    val description: String? = null,
+    val subjectReady: Boolean = false,   // segmentation returned (subject may still be null)
+    val popNumber: String? = null,       // OCR read — the #NNN callout
+    val matching: Boolean = false,       // catalog walk started
+    val description: String? = null,     // trailing on-device description
     val settled: CascadeResult? = null,
     val failure: String? = null,
-    val running: Boolean = true,
+    val barcodePath: Boolean = false,    // barcode fallback skips segmentation/OCR beats
 ) {
-    /** Append a status line, de-duping consecutive repeats (the cascade emits Segmenting twice). */
-    fun withStatus(line: String): List<String> =
-        if (statusLines.lastOrNull() == line) statusLines else statusLines + line
+    val running: Boolean get() = settled == null && failure == null
 }
