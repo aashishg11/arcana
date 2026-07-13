@@ -20,6 +20,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.aashishgodambe.arcana.core.data.repository.CollectibleRepository
 import com.aashishgodambe.arcana.feature.benchmark.BenchmarkScreen
+import com.aashishgodambe.arcana.feature.capture.CameraScreen
+import com.aashishgodambe.arcana.feature.capture.CaptureReviewScreen
 import com.aashishgodambe.arcana.feature.collection.CategoryScreen
 import com.aashishgodambe.arcana.feature.detail.DetailScreen
 import com.aashishgodambe.arcana.feature.settings.SettingsScreen
@@ -43,6 +45,8 @@ object Routes {
     const val DETAIL = "detail/{localId}"
     const val SETTINGS = "settings"
     const val BENCHMARK = "benchmark"
+    const val CAPTURE_CAMERA = "capture/camera"
+    const val CAPTURE_REVIEW = "capture/review"
     fun import(uri: String) = "import/${Uri.encode(uri)}"
     fun category(list: String) = "category/${Uri.encode(list)}"
     fun detail(localId: Long) = "detail/$localId"
@@ -75,6 +79,7 @@ fun ArcanaNavHost() {
                 onGroupClick = { name -> nav.navigate(Routes.category(name)) },
                 onItemClick = { id -> nav.navigate(Routes.detail(id)) },
                 onOpenSettings = { nav.navigate(Routes.SETTINGS) },
+                onOpenCapture = { nav.navigate(Routes.CAPTURE_CAMERA) },
             )
         }
         composable(Routes.CATEGORY, arguments = listOf(navArgument("list") { type = NavType.StringType })) {
@@ -94,6 +99,20 @@ fun ArcanaNavHost() {
         }
         composable(Routes.BENCHMARK) {
             BenchmarkScreen(onBack = { nav.popBackStack() })
+        }
+        composable(Routes.CAPTURE_CAMERA) {
+            CameraScreen(
+                onClose = { nav.popBackStack() },
+                // Drop the camera off the back stack so Review returns straight to Portfolio.
+                onCaptured = {
+                    nav.navigate(Routes.CAPTURE_REVIEW) {
+                        popUpTo(Routes.CAPTURE_CAMERA) { inclusive = true }
+                    }
+                },
+            )
+        }
+        composable(Routes.CAPTURE_REVIEW) {
+            CaptureReviewScreen(onClose = { nav.popBackStack() })
         }
     }
 }

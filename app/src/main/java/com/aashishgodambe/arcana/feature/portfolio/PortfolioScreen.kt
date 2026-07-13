@@ -175,6 +175,7 @@ fun PortfolioScreen(
     onGroupClick: (String) -> Unit,
     onItemClick: (Long) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenCapture: () -> Unit,
     vm: PortfolioViewModel = hiltViewModel(),
 ) {
     val c = ArcanaTheme.colors
@@ -317,7 +318,7 @@ fun PortfolioScreen(
                     Box(Modifier.size(7.dp).clip(RoundedCornerShape(999.dp)).background(c.iris))
                     Text("Ask Arcana", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = c.text)
                 }
-                Box(Modifier.size(58.dp).clip(RoundedCornerShape(20.dp)).background(c.iris), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(58.dp).clip(RoundedCornerShape(20.dp)).background(c.iris).clickable(onClick = onOpenCapture), contentAlignment = Alignment.Center) {
                     Text("⊕", color = Color.White, fontSize = 24.sp)
                 }
             }

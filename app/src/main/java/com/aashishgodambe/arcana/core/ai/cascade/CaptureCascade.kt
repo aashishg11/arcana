@@ -5,7 +5,10 @@ import android.os.SystemClock
 import android.util.Log
 import com.aashishgodambe.arcana.core.ai.catalog.CatalogProviderChain
 import com.aashishgodambe.arcana.core.ai.catalog.CatalogQuery
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.ProducerScope
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import javax.inject.Inject
@@ -66,7 +69,18 @@ class CaptureCascade @Inject constructor(
         }
     }
 
-    fun identify(bitmap: Bitmap): Flow<CascadeState> = channelFlow {
+    /** Single-frame convenience — the common path and what the tests + dev harness drive. */
+    fun identify(bitmap: Bitmap): Flow<CascadeState> = identify(listOf(bitmap))
+
+    /**
+     * Identify from a small burst of frames. The first is the primary; the rest are the escalation burst
+     * the engine consults **only** when the primary's OCR gives an uncorroborated Pop number (Week-8 bug:
+     * a lone digit misreads silently under backlight). On the common corroborated read the extras are never
+     * OCR'd, so the happy path pays no burst cost; when they are, OCR runs concurrently and the majority
+     * vote picks the winning frame that feeds every downstream stage.
+     */
+    fun identify(frames: List<Bitmap>): Flow<CascadeState> = channelFlow {
+        require(frames.isNotEmpty()) { "identify needs at least one frame" }
         val timings = LinkedHashMap<String, Long>()
         val started = SystemClock.elapsedRealtime()
         try {
@@ -77,8 +91,9 @@ class CaptureCascade @Inject constructor(
             // are best-effort and run after, where they can never block identification.
             send(CascadeState.Segmenting())
 
-            // 1. OCR + positional layout on the full frame — the strong identification signal.
-            val layout = stage(timings, "ocr") { BoxLayoutParser.parse(textExtractor.extract(bitmap).lines) }
+            // 1. OCR + positional layout — burst-and-vote when the primary read is weak. The winning frame
+            //    becomes the one every later stage (describe, catalog, segment) reads.
+            val (bitmap, layout) = stage(timings, "ocr") { resolveFrame(frames) }
             send(CascadeState.Read(layout))
 
             // 2. Describe (on-device LLM) on the full frame — best-effort, streaming, never fatal.
@@ -119,6 +134,28 @@ class CaptureCascade @Inject constructor(
             Log.w(TAG, "cascade failed", e)
             send(CascadeState.Failed(stage = timings.keys.lastOrNull() ?: "segment", cause = e))
         }
+    }
+
+    /**
+     * OCR the primary frame; if its Pop number is uncorroborated (or absent) and a burst is available, OCR
+     * the rest concurrently and majority-vote. Returns the winning (frame, layout) — the frame every
+     * downstream stage then reads. Keeps the vote in the engine so the UI stays a pure renderer.
+     */
+    private suspend fun resolveFrame(frames: List<Bitmap>): Pair<Bitmap, BoxLayout> {
+        val primary = frames.first()
+        val primaryLayout = BoxLayoutParser.parse(textExtractor.extract(primary).lines)
+        if (frames.size == 1 || OcrBurstVote.isCorroborated(primaryLayout)) return primary to primaryLayout
+
+        Log.i(TAG, "primary read uncorroborated (#${primaryLayout.popNumber}); bursting ${frames.size - 1} more")
+        val rest = coroutineScope {
+            frames.drop(1).map { frame ->
+                async { frame to BoxLayoutParser.parse(textExtractor.extract(frame).lines) }
+            }.awaitAll()
+        }
+        val candidates = listOf(primary to primaryLayout) + rest
+        val winner = candidates[OcrBurstVote.pick(candidates.map { it.second })]
+        Log.i(TAG, "burst vote → #${winner.second.popNumber}")
+        return winner
     }
 
     private suspend fun <T> ProducerScope<*>.stage(

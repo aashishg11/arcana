@@ -5,6 +5,11 @@
     <!-- Needed for the cloud fallback path (unused under ONLY_ON_DEVICE, but Firebase init expects it). -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Capture flow (Week 9): the camera feeds the identification cascade. Optional feature so the app
+         still installs on camera-less devices — the barcode/import paths don't need it. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+
     <application
         android:name=".ArcanaApplication"
         android:allowBackup="true"
