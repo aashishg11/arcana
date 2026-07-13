@@ -5,11 +5,13 @@ import com.aashishgodambe.arcana.core.data.database.entity.SnapshotTrigger
 import com.aashishgodambe.arcana.core.data.database.entity.ValueSource
 import com.aashishgodambe.arcana.core.data.importer.model.ImportedItem
 import com.aashishgodambe.arcana.core.domain.model.Collectible
+import com.aashishgodambe.arcana.core.domain.model.FunkoPop
 import com.aashishgodambe.arcana.core.domain.model.PortfolioPoint
 import com.aashishgodambe.arcana.core.domain.model.ValueSnapshot
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import java.time.Instant
+import java.time.LocalDate
 
 /**
  * In-memory [CollectibleRepository] fake extending the Week-2 device-free test pattern to the value
@@ -88,4 +90,31 @@ class FakeCollectibleRepository(items: List<Collectible> = emptyList()) : Collec
         items: List<ImportedItem>,
         onProgress: (written: Int, item: ImportedItem) -> Unit,
     ): Int = 0
+
+    /** Settable list names for the save-to-list picker in ViewModel tests. */
+    var listNames: List<String> = emptyList()
+
+    override suspend fun saveCaptured(item: ImportedItem): Long {
+        val id = (byId.keys.maxOrNull() ?: 0L) + 1
+        byId[id] = FunkoPop(
+            localId = id, name = item.name, brand = item.brand, imageUrl = item.imageUrl,
+            estimatedValueCents = item.estimatedValueCents ?: 0, lastKnownValueCents = item.estimatedValueCents,
+            quantity = item.quantity, itemCondition = item.itemCondition ?: "",
+            packagingCondition = item.packagingCondition ?: "", series = item.series, productionTags = emptyList(),
+            dateAdded = item.dateAdded ?: LocalDate.now(), pricePaidCents = null, storageLocation = null,
+            upc = item.funkoMetadata?.upc ?: "", popNumber = item.funkoMetadata?.popNumber,
+            exclusiveTo = item.funkoMetadata?.exclusiveTo, isNftRedeemable = item.funkoMetadata?.isNftRedeemable ?: false,
+        )
+        recordSnapshot(id, item.estimatedValueCents ?: 0, ValueSource.EbayBrowse, SnapshotTrigger.Import, Instant.now())
+        return id
+    }
+
+    override suspend fun incrementQuantity(localId: Long): Int {
+        val current = byId[localId] as? FunkoPop ?: return 0
+        val updated = current.copy(quantity = current.quantity + 1)
+        byId[localId] = updated
+        return updated.quantity
+    }
+
+    override suspend fun listNames(): List<String> = listNames
 }

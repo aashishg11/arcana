@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -31,10 +32,18 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,6 +68,7 @@ import com.aashishgodambe.arcana.ui.component.ChipStyle
 import com.aashishgodambe.arcana.ui.component.GhostButton
 import com.aashishgodambe.arcana.ui.component.InferenceBadge
 import com.aashishgodambe.arcana.ui.component.MarketSection
+import com.aashishgodambe.arcana.ui.component.PillButton
 import com.aashishgodambe.arcana.ui.theme.ArcanaTheme
 import com.aashishgodambe.arcana.ui.theme.Mono
 
@@ -76,11 +86,16 @@ import com.aashishgodambe.arcana.ui.theme.Mono
 fun CaptureReviewScreen(
     onClose: () -> Unit,
     onRescan: () -> Unit,
+    onSaved: (Long) -> Unit,
     vm: CaptureReviewViewModel = hiltViewModel(),
 ) {
     val c = ArcanaTheme.colors
     val s by vm.state.collectAsStateWithLifecycle()
     val settled = s.settled
+    var pickerOpen by remember { mutableStateOf(false) }
+
+    // Once saved, land on the item's Detail (the canonical post-capture destination).
+    LaunchedEffect(s.savedId) { s.savedId?.let(onSaved) }
 
     Scaffold(containerColor = c.bg) { padding ->
         Column(
@@ -103,12 +118,26 @@ fun CaptureReviewScreen(
 
             when {
                 s.failure != null -> FailureBlock(s.failure!!, onRescan)
-                settled != null -> SettledIdentity(s, onRescan)
+                settled != null -> SettledIdentity(
+                    s = s,
+                    onRescan = onRescan,
+                    onAddAnother = vm::addAnother,
+                    onSaveClick = { pickerOpen = true },
+                )
                 else -> RunningBeats(s)
             }
 
             Spacer(Modifier.height(40.dp))
         }
+    }
+
+    if (pickerOpen) {
+        ListPickerDialog(
+            lists = s.availableLists,
+            suggested = suggestedList(s),
+            onDismiss = { pickerOpen = false },
+            onPick = { listName -> pickerOpen = false; vm.save(listName) },
+        )
     }
 }
 
@@ -241,7 +270,12 @@ private fun StatusLine(done: Boolean, label: String, detail: String) {
 /** The settled result: identity + source + confidence + ownership + the live market. Reweights for low
  *  confidence (heading softens, barcode promotes to a button). Save lands in Day 4. */
 @Composable
-private fun SettledIdentity(s: CaptureReviewUiState, onRescan: () -> Unit) {
+private fun SettledIdentity(
+    s: CaptureReviewUiState,
+    onRescan: () -> Unit,
+    onAddAnother: () -> Unit,
+    onSaveClick: () -> Unit,
+) {
     val c = ArcanaTheme.colors
     val settled = s.settled ?: return
     val entry = settled.entry
@@ -283,7 +317,15 @@ private fun SettledIdentity(s: CaptureReviewUiState, onRescan: () -> Unit) {
         MarketSection(market, s.buyUrl.orEmpty())
     }
 
+    // Primary action — the user is always in charge, even on a low-confidence read.
     Spacer(Modifier.height(16.dp))
+    if (settled.owned) {
+        PillButton("Add another to my collection", onClick = onAddAnother, enabled = !s.saving)
+    } else {
+        PillButton(if (s.saving) "Saving…" else "Save to collection", onClick = onSaveClick, enabled = !s.saving)
+    }
+
+    Spacer(Modifier.height(12.dp))
     BarcodeAffordance(promoted = lowConfidence, onRescan = onRescan)
 
     Spacer(Modifier.height(12.dp))
@@ -378,6 +420,60 @@ private fun FailureBlock(message: String, onRescan: () -> Unit) {
     Text("Try another angle, or use the barcode fallback.", color = c.textDim, fontSize = 14.sp)
     Spacer(Modifier.height(16.dp))
     GhostButton("Scan barcode", onClick = onRescan, accent = true)
+}
+
+/**
+ * A captured pop carries no list, but Portfolio groups by it — so save must ask which list to add it to.
+ * Pick an existing list or type a new one; the best-matching existing list is flagged as suggested.
+ */
+@Composable
+private fun ListPickerDialog(
+    lists: List<String>,
+    suggested: String?,
+    onDismiss: () -> Unit,
+    onPick: (String) -> Unit,
+) {
+    val c = ArcanaTheme.colors
+    var newList by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = c.surface,
+        title = { Text("Save to which list?", color = c.text, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(Modifier.fillMaxWidth().heightIn(max = 340.dp).verticalScroll(rememberScrollState())) {
+                lists.forEach { name ->
+                    val isSuggested = name == suggested
+                    Text(
+                        if (isSuggested) "$name  · suggested" else name,
+                        color = if (isSuggested) c.iris else c.text, fontSize = 15.sp,
+                        fontWeight = if (isSuggested) FontWeight.SemiBold else FontWeight.Normal,
+                        modifier = Modifier.fillMaxWidth().clickable { onPick(name) }.padding(vertical = 12.dp),
+                    )
+                    HorizontalDivider(color = c.hairline)
+                }
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = newList, onValueChange = { newList = it },
+                    label = { Text("Or create a new list") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onPick(newList) }, enabled = newList.isNotBlank()) {
+                Text("Create & save", color = if (newList.isNotBlank()) c.iris else c.textFaint)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = c.textDim) } },
+    )
+}
+
+/** A sensible default: the existing list whose name shares a token with the pop's series/exclusive. */
+private fun suggestedList(s: CaptureReviewUiState): String? {
+    val entry = s.settled?.entry ?: return null
+    fun tokens(str: String) = str.lowercase().split(Regex("[^a-z0-9]+")).filter { it.length >= 3 }.toSet()
+    val hints = (entry.series + listOfNotNull(entry.exclusiveTo)).flatMap(::tokens).toSet()
+    return s.availableLists.firstOrNull { list -> tokens(list).any { it in hints } }
 }
 
 /** The current in-flight phase for the top-left chip, or null once settled/failed. */

@@ -11,6 +11,9 @@ import com.aashishgodambe.arcana.core.ai.model.MarketContext
 import com.aashishgodambe.arcana.core.ai.model.PriceResult
 import com.aashishgodambe.arcana.core.ai.pricing.EbaySearch
 import com.aashishgodambe.arcana.core.ai.pricing.PriceProviderChain
+import com.aashishgodambe.arcana.core.data.database.entity.CollectibleCategory
+import com.aashishgodambe.arcana.core.data.importer.model.FunkoImportMetadata
+import com.aashishgodambe.arcana.core.data.importer.model.ImportedItem
 import com.aashishgodambe.arcana.core.data.repository.CollectibleRepository
 import com.aashishgodambe.arcana.core.domain.model.FunkoPop
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -111,17 +114,73 @@ class CaptureReviewViewModel @Inject constructor(
      */
     private fun fetchMarket(entry: CatalogEntry) {
         viewModelScope.launch {
-            val owned = entry.matchedLocalId?.let { repository.getById(it) as? FunkoPop }
-            val collectible = owned ?: entry.toPriceable()
-            _state.update { it.copy(ownedQuantity = owned?.quantity, buyUrl = EbaySearch.url(collectible)) }
-            val market = (priceChain.fetchPrice(collectible) as? PriceResult.Success)?.marketContext
+            // Price via the entry (which now carries the box's franchise) so a generic name is
+            // disambiguated; load the owned pop only for the ×N count.
+            val ownedQty = entry.matchedLocalId?.let { (repository.getById(it) as? FunkoPop)?.quantity }
+            val priceable = entry.toPriceable()
+            _state.update {
+                it.copy(ownedQuantity = ownedQty, buyUrl = EbaySearch.url(priceable), availableLists = repository.listNames())
+            }
+            val market = (priceChain.fetchPrice(priceable) as? PriceResult.Success)?.marketContext
             _state.update { it.copy(market = market) }
         }
     }
 
-    /** A transient [FunkoPop] from a catalog identity — only name/number/series are used, to price + link. */
+    /** Save an unowned captured pop into [listName] (creating the list if new); lands on Detail via [savedId]. */
+    fun save(listName: String) {
+        val entry = _state.value.settled?.entry ?: return
+        if (_state.value.saving) return
+        _state.update { it.copy(saving = true) }
+        viewModelScope.launch {
+            val item = ImportedItem(
+                sourceId = entry.externalId,
+                sourceName = "Arcana Capture",
+                listName = listName.trim().ifBlank { null },
+                category = CollectibleCategory.Funko,
+                name = entry.name,
+                brand = "Funko",
+                quantity = 1,
+                estimatedValueCents = _state.value.market?.medianActivePriceCents ?: 0,
+                itemCondition = null,
+                packagingCondition = null,
+                dateAdded = LocalDate.now(),
+                imageUrl = entry.imageUrl,
+                series = entry.series,
+                productionTags = emptyList(),
+                funkoMetadata = FunkoImportMetadata(
+                    upc = null,
+                    popNumber = entry.number,
+                    exclusiveTo = entry.exclusiveTo,
+                    isNftRedeemable = entry.exclusiveTo?.contains("nft", ignoreCase = true) == true,
+                    scale = null,
+                    releaseDate = null,
+                    hdbcNumber = null,
+                ),
+            )
+            _state.update { it.copy(saving = false, savedId = repository.saveCaptured(item)) }
+        }
+    }
+
+    /** "Add another" for an already-owned pop — bump quantity, then land on its Detail. */
+    fun addAnother() {
+        val id = _state.value.settled?.entry?.matchedLocalId ?: return
+        if (_state.value.saving) return
+        _state.update { it.copy(saving = true) }
+        viewModelScope.launch {
+            repository.incrementQuantity(id)
+            _state.update { it.copy(saving = false, savedId = id) }
+        }
+    }
+
+    /**
+     * A transient [FunkoPop] from a catalog identity, used only to price + link (name/franchise/number/
+     * series). The franchise is folded into the name so the eBay query disambiguates a generic name —
+     * "Freddy Funko" → "Freddy Funko Popeye" — since the collection stores no franchise for these.
+     */
     private fun CatalogEntry.toPriceable(): FunkoPop = FunkoPop(
-        localId = matchedLocalId ?: 0L, name = name, brand = "Funko", imageUrl = imageUrl,
+        localId = matchedLocalId ?: 0L,
+        name = listOfNotNull(name, franchise?.takeIf { !name.contains(it, ignoreCase = true) }).joinToString(" "),
+        brand = "Funko", imageUrl = imageUrl,
         estimatedValueCents = 0, lastKnownValueCents = null, quantity = 1, itemCondition = "",
         packagingCondition = "", series = series, productionTags = emptyList(), dateAdded = LocalDate.now(),
         pricePaidCents = null, storageLocation = null, upc = "", popNumber = number,
@@ -147,6 +206,9 @@ data class CaptureReviewUiState(
     val market: MarketContext? = null,   // live eBay market, fetched after settle
     val buyUrl: String? = null,          // eBay search link for the settled identity
     val ownedQuantity: Int? = null,      // copies owned, for the "×N" callout
+    val availableLists: List<String> = emptyList(),  // existing lists for the save picker
+    val saving: Boolean = false,
+    val savedId: Long? = null,           // set once saved — the screen navigates to this item's Detail
 ) {
     val running: Boolean get() = settled == null && failure == null
 }

@@ -120,6 +120,12 @@ fun ArcanaNavHost() {
                         popUpTo(Routes.CAPTURE_REVIEW) { inclusive = true }
                     }
                 },
+                // After save, land on the new item's Detail (capture flow off the back stack).
+                onSaved = { localId ->
+                    nav.navigate(Routes.detail(localId)) {
+                        popUpTo(Routes.CAPTURE_REVIEW) { inclusive = true }
+                    }
+                },
             )
         }
     }

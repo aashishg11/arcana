@@ -64,6 +64,20 @@ interface CollectibleDao {
     @Query("SELECT * FROM collectibles WHERE localId = :id")
     suspend fun getById(id: Long): CollectibleEntity?
 
+    /** "Add another" — bump the owned copy count; duplicate-aware valuation already multiplies by it. */
+    @Query("UPDATE collectibles SET quantity = quantity + 1 WHERE localId = :id")
+    suspend fun incrementQuantity(id: Long)
+
+    @Query("SELECT quantity FROM collectibles WHERE localId = :id")
+    suspend fun quantityOf(id: Long): Int
+
+    /** Distinct non-empty list names, for the capture save-to-list picker. */
+    @Query(
+        "SELECT DISTINCT listName FROM collectibles WHERE listName IS NOT NULL AND listName != '' " +
+            "ORDER BY listName COLLATE NOCASE",
+    )
+    suspend fun listNames(): List<String>
+
     @Query("SELECT * FROM collectibles ORDER BY estimatedValueCents DESC LIMIT :limit")
     suspend fun getMostValuable(limit: Int): List<CollectibleEntity>
 

@@ -86,4 +86,18 @@ interface CollectibleRepository {
         items: List<ImportedItem>,
         onProgress: (written: Int, item: ImportedItem) -> Unit = { _, _ -> },
     ): Int
+
+    /**
+     * Persists a single **captured** pop (origin ArcanaCapture) into its chosen list: a collectible row +
+     * metadata + series junctions + an initial eBay-priced value snapshot, so it joins value tracking
+     * immediately. Uses [ImportedItem.estimatedValueCents] as the snapshot value. Returns the new localId
+     * for the post-save Detail landing.
+     */
+    suspend fun saveCaptured(item: ImportedItem): Long
+
+    /** "Add another to my collection" — increments an owned item's quantity; returns the new count. */
+    suspend fun incrementQuantity(localId: Long): Int
+
+    /** The existing non-empty list names, for the capture save-to-list picker. */
+    suspend fun listNames(): List<String>
 }

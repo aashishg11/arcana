@@ -163,6 +163,37 @@ class CollectibleRepositoryImpl @Inject constructor(
         }
         inserted
     }
+
+    override suspend fun saveCaptured(item: ImportedItem): Long = db.withTransaction {
+        val localId = collectibleDao.insert(item.toEntity(CollectibleOrigin.ArcanaCapture))
+        item.funkoMetadata?.let { funkoMetadataDao.insert(it.toEntity(localId)) }
+        for (seriesName in item.series.distinct()) {
+            val seriesId = seriesDao.getOrInsert(seriesName)
+            seriesDao.insertCrossRef(CollectibleSeriesCrossRef(localId, seriesId))
+        }
+        // Initial snapshot from the live eBay median, so the pop joins value tracking immediately and its
+        // tracked "current" value is the market price, not the import estimate.
+        val now = Instant.now()
+        val value = item.estimatedValueCents ?: 0
+        valueSnapshotDao.insert(
+            ValueSnapshotEntity(
+                collectibleLocalId = localId,
+                valueCents = value,
+                source = ValueSource.EbayBrowse,
+                trigger = SnapshotTrigger.Import,
+                snapshotAt = now,
+            ),
+        )
+        collectibleDao.updateLastKnownValue(localId, value, ValueSource.EbayBrowse, now)
+        localId
+    }
+
+    override suspend fun incrementQuantity(localId: Long): Int = db.withTransaction {
+        collectibleDao.incrementQuantity(localId)
+        collectibleDao.quantityOf(localId)
+    }
+
+    override suspend fun listNames(): List<String> = collectibleDao.listNames()
 }
 
 /** Per-term fetch ceiling before intersecting — high so a common term (e.g. "power") can't crowd out
@@ -188,9 +219,9 @@ private fun salientTerms(query: String): List<String> =
         .filter { it.length >= 3 && it !in SEARCH_STOPWORDS }
         .distinct()
 
-private fun ImportedItem.toEntity() = CollectibleEntity(
+private fun ImportedItem.toEntity(origin: CollectibleOrigin = CollectibleOrigin.HobbyDbImport) = CollectibleEntity(
     category = category,
-    origin = CollectibleOrigin.HobbyDbImport,
+    origin = origin,
     sourceId = sourceId.ifBlank { null },
     sourceName = sourceName,
     listName = listName,
