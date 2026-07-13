@@ -104,6 +104,10 @@ dependencies {
     // while a product-framed Prompt API request passes safety AND extracts identity + Pop number on-device.
     implementation(libs.mlkit.genai.prompt)
 
+    // --- On-device ML (ML Kit Vision — cascade deterministic stages: OCR, segmentation) ---
+    implementation(libs.mlkit.text.recognition)   // Latin, bundled model (offline, no download)
+    implementation(libs.mlkit.subject.segmentation) // subject mask; model downloaded on first use
+
     // --- On-device AI (own-model: self-quantized Gemma 3 1B via MediaPipe LLM Inference / LiteRT-LM) ---
     implementation(libs.mediapipe.tasks.genai)
 

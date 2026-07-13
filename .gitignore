@@ -21,6 +21,10 @@ local.properties
 # Raw un-sanitized collection export — kept local; only the sanitized fixture is committed
 seed-data/*.raw.csv
 
+# Real capture fixtures from the user's own photos (show hand/home) — kept local, off the public repo.
+# The committed funko_box.png (stock) + the real-OCR data embedded in BoxLayoutParserTest cover the cascade.
+/app/src/androidTest/assets/freddy32_*.jpg
+
 # Claude local settings (machine-specific)
 .claude/settings.local.json
 
