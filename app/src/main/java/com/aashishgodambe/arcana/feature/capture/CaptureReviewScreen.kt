@@ -48,15 +48,17 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.aashishgodambe.arcana.core.ai.cascade.CascadeResult
 import com.aashishgodambe.arcana.core.ai.model.InferenceLocation
 import com.aashishgodambe.arcana.ui.component.ArcanaChip
 import com.aashishgodambe.arcana.ui.component.ChipStyle
+import com.aashishgodambe.arcana.ui.component.GhostButton
 import com.aashishgodambe.arcana.ui.component.InferenceBadge
+import com.aashishgodambe.arcana.ui.component.MarketSection
 import com.aashishgodambe.arcana.ui.theme.ArcanaTheme
 import com.aashishgodambe.arcana.ui.theme.Mono
 
@@ -73,6 +75,7 @@ import com.aashishgodambe.arcana.ui.theme.Mono
 @Composable
 fun CaptureReviewScreen(
     onClose: () -> Unit,
+    onRescan: () -> Unit,
     vm: CaptureReviewViewModel = hiltViewModel(),
 ) {
     val c = ArcanaTheme.colors
@@ -99,20 +102,9 @@ fun CaptureReviewScreen(
             Spacer(Modifier.height(16.dp))
 
             when {
-                s.failure != null -> FailureBlock(s.failure!!)
-                settled != null -> SettledIdentity(settled)
+                s.failure != null -> FailureBlock(s.failure!!, onRescan)
+                settled != null -> SettledIdentity(s, onRescan)
                 else -> RunningBeats(s)
-            }
-
-            // The late, optional on-device read, reconciled to the authoritative identity. Nano's
-            // character/franchise labels swap unreliably (it reads "Popeye" for a Freddy Funko), so we
-            // never surface them — only where Nano independently corroborates the OCR/catalog Pop number.
-            settled?.entry?.let { entry ->
-                val nano = s.description?.let(::nanoNumber)
-                if (nano != null && nano == entry.number) {
-                    Spacer(Modifier.height(14.dp))
-                    NanoCorroboration(nano)
-                }
             }
 
             Spacer(Modifier.height(40.dp))
@@ -246,21 +238,23 @@ private fun StatusLine(done: Boolean, label: String, detail: String) {
     }
 }
 
-/** The settled identity (Day 2: identity + source + confidence + ownership). Market + save land in Day 3–4. */
+/** The settled result: identity + source + confidence + ownership + the live market. Reweights for low
+ *  confidence (heading softens, barcode promotes to a button). Save lands in Day 4. */
 @Composable
-private fun SettledIdentity(settled: CascadeResult) {
+private fun SettledIdentity(s: CaptureReviewUiState, onRescan: () -> Unit) {
     val c = ArcanaTheme.colors
+    val settled = s.settled ?: return
     val entry = settled.entry
     if (entry == null) {
-        Text("Not sure what this is", color = c.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(6.dp))
-        Text(
-            "The cascade couldn't settle on a confident match. Scan the barcode or try another angle.",
-            color = c.textDim, fontSize = 14.sp, lineHeight = 20.sp,
-        )
+        UnresolvedBlock(onRescan)
         return
     }
+    val lowConfidence = !settled.confident
 
+    if (lowConfidence) {
+        Text("Not sure — this might be", color = c.textDim, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.height(4.dp))
+    }
     Text(entry.name, color = c.text, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
     Spacer(Modifier.height(10.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -275,17 +269,74 @@ private fun SettledIdentity(settled: CascadeResult) {
 
     if (settled.owned) {
         Spacer(Modifier.height(14.dp))
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.irisSoft).padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text("◆", color = c.iris, fontSize = 13.sp)
-            Text("You already own this", color = c.iris, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-        }
+        OwnedCallout(s.ownedQuantity)
     }
 
-    Spacer(Modifier.height(10.dp))
-    Text("identified in ${settled.telemetry.totalMs}ms", fontFamily = Mono, fontSize = 10.sp, color = c.textFaint)
+    // Nano's on-device read, only where it corroborates the authoritative Pop number (never its labels).
+    s.description?.let(::nanoNumber)?.takeIf { it == entry.number }?.let { nano ->
+        Spacer(Modifier.height(14.dp))
+        NanoCorroboration(nano)
+    }
+
+    s.market?.let { market ->
+        Spacer(Modifier.height(16.dp))
+        MarketSection(market, s.buyUrl.orEmpty())
+    }
+
+    Spacer(Modifier.height(16.dp))
+    BarcodeAffordance(promoted = lowConfidence, onRescan = onRescan)
+
+    Spacer(Modifier.height(12.dp))
+    Text(
+        "identified in ${settled.telemetry.totalMs}ms",
+        fontFamily = Mono, fontSize = 10.sp, color = c.textFaint, modifier = Modifier.fillMaxWidth(),
+        textAlign = TextAlign.Center,
+    )
+}
+
+/** "You already own this" — with a ×N count once the owned copy count is loaded. */
+@Composable
+private fun OwnedCallout(quantity: Int?) {
+    val c = ArcanaTheme.colors
+    val label = if ((quantity ?: 1) > 1) "You already own ×$quantity of these" else "You already own this"
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.irisSoft).padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text("◆", color = c.iris, fontSize = 13.sp)
+        Text(label, color = c.iris, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+/** Barcode fallback — a tertiary link when confident, promoted to a button when the read is uncertain. */
+@Composable
+private fun BarcodeAffordance(promoted: Boolean, onRescan: () -> Unit) {
+    val c = ArcanaTheme.colors
+    if (promoted) {
+        GhostButton("Scan barcode instead", onClick = onRescan, accent = true)
+    } else {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+            Text("Wrong? ", color = c.textDim, fontSize = 13.sp)
+            Text(
+                "Scan barcode", color = c.iris, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.clickable(onClick = onRescan),
+            )
+        }
+    }
+}
+
+/** Nothing resolved — the honest no-match state; the barcode is the surest way in. */
+@Composable
+private fun UnresolvedBlock(onRescan: () -> Unit) {
+    val c = ArcanaTheme.colors
+    Text("Not sure what this is", color = c.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+    Spacer(Modifier.height(6.dp))
+    Text(
+        "The cascade couldn't settle on a confident match. A barcode is the surest way in.",
+        color = c.textDim, fontSize = 14.sp, lineHeight = 20.sp,
+    )
+    Spacer(Modifier.height(16.dp))
+    GhostButton("Scan barcode", onClick = onRescan, accent = true)
 }
 
 @Composable
@@ -320,11 +371,13 @@ private fun nanoNumber(raw: String): String? =
     Regex("\"number\"\\s*:\\s*\"?(\\d{1,4})").find(raw)?.groupValues?.get(1)
 
 @Composable
-private fun FailureBlock(message: String) {
+private fun FailureBlock(message: String, onRescan: () -> Unit) {
     val c = ArcanaTheme.colors
     Text(message, color = c.down, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
     Spacer(Modifier.height(6.dp))
     Text("Try another angle, or use the barcode fallback.", color = c.textDim, fontSize = 14.sp)
+    Spacer(Modifier.height(16.dp))
+    GhostButton("Scan barcode", onClick = onRescan, accent = true)
 }
 
 /** The current in-flight phase for the top-left chip, or null once settled/failed. */

@@ -6,12 +6,20 @@ import androidx.lifecycle.viewModelScope
 import com.aashishgodambe.arcana.core.ai.cascade.CaptureCascade
 import com.aashishgodambe.arcana.core.ai.cascade.CascadeResult
 import com.aashishgodambe.arcana.core.ai.cascade.CascadeState
+import com.aashishgodambe.arcana.core.ai.catalog.CatalogEntry
+import com.aashishgodambe.arcana.core.ai.model.MarketContext
+import com.aashishgodambe.arcana.core.ai.model.PriceResult
+import com.aashishgodambe.arcana.core.ai.pricing.EbaySearch
+import com.aashishgodambe.arcana.core.ai.pricing.PriceProviderChain
+import com.aashishgodambe.arcana.core.data.repository.CollectibleRepository
+import com.aashishgodambe.arcana.core.domain.model.FunkoPop
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 import javax.inject.Inject
 
 /**
@@ -28,6 +36,8 @@ import javax.inject.Inject
 class CaptureReviewViewModel @Inject constructor(
     private val store: CaptureSessionStore,
     private val cascade: CaptureCascade,
+    private val priceChain: PriceProviderChain,
+    private val repository: CollectibleRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(CaptureReviewUiState())
@@ -84,13 +94,39 @@ class CaptureReviewViewModel @Inject constructor(
             CascadeState.Matching ->
                 _state.update { it.copy(matching = true) }
 
-            is CascadeState.Settled ->
+            is CascadeState.Settled -> {
                 _state.update { it.copy(settled = cascadeState.result) }
+                cascadeState.result.entry?.let { fetchMarket(it) }
+            }
 
             is CascadeState.Failed ->
                 _state.update { it.copy(failure = "Couldn't identify (${cascadeState.stage})") }
         }
     }
+
+    /**
+     * Once identified, load the live market (same real-eBay chain Detail uses) and the owned quantity for
+     * the "×N" callout. For an owned pop we load the real collectible (real quantity + a good price
+     * fallback); otherwise a transient one carries just enough identity to price and link out.
+     */
+    private fun fetchMarket(entry: CatalogEntry) {
+        viewModelScope.launch {
+            val owned = entry.matchedLocalId?.let { repository.getById(it) as? FunkoPop }
+            val collectible = owned ?: entry.toPriceable()
+            _state.update { it.copy(ownedQuantity = owned?.quantity, buyUrl = EbaySearch.url(collectible)) }
+            val market = (priceChain.fetchPrice(collectible) as? PriceResult.Success)?.marketContext
+            _state.update { it.copy(market = market) }
+        }
+    }
+
+    /** A transient [FunkoPop] from a catalog identity — only name/number/series are used, to price + link. */
+    private fun CatalogEntry.toPriceable(): FunkoPop = FunkoPop(
+        localId = matchedLocalId ?: 0L, name = name, brand = "Funko", imageUrl = imageUrl,
+        estimatedValueCents = 0, lastKnownValueCents = null, quantity = 1, itemCondition = "",
+        packagingCondition = "", series = series, productionTags = emptyList(), dateAdded = LocalDate.now(),
+        pricePaidCents = null, storageLocation = null, upc = "", popNumber = number,
+        exclusiveTo = exclusiveTo, isNftRedeemable = false,
+    )
 }
 
 /**
@@ -108,6 +144,9 @@ data class CaptureReviewUiState(
     val settled: CascadeResult? = null,
     val failure: String? = null,
     val barcodePath: Boolean = false,    // barcode fallback skips segmentation/OCR beats
+    val market: MarketContext? = null,   // live eBay market, fetched after settle
+    val buyUrl: String? = null,          // eBay search link for the settled identity
+    val ownedQuantity: Int? = null,      // copies owned, for the "×N" callout
 ) {
     val running: Boolean get() = settled == null && failure == null
 }

@@ -112,7 +112,15 @@ fun ArcanaNavHost() {
             )
         }
         composable(Routes.CAPTURE_REVIEW) {
-            CaptureReviewScreen(onClose = { nav.popBackStack() })
+            CaptureReviewScreen(
+                onClose = { nav.popBackStack() },
+                // Rescan (e.g. via barcode) replaces Review with a fresh camera.
+                onRescan = {
+                    nav.navigate(Routes.CAPTURE_CAMERA) {
+                        popUpTo(Routes.CAPTURE_REVIEW) { inclusive = true }
+                    }
+                },
+            )
         }
     }
 }
