@@ -55,6 +55,16 @@ class LocalCollectionCatalogProviderTest {
     }
 
     @Test
+    fun series_alone_does_not_rescue_a_contradicted_same_number_match() = runBlocking {
+        // The real #82→Parallax mis-ID: a same-number match where only the series agrees ("Pop! Digital")
+        // but the franchise/character contradict must NOT resolve — series is too weak to corroborate.
+        val match = provider.lookup(
+            CatalogQuery(popNumber = "52", franchise = "Popeye", character = "Freddy Funko", series = "Pop! Digital"),
+        )
+        assertNull("series match must not rescue a franchise-contradicted number coincidence", match)
+    }
+
+    @Test
     fun matches_number_only_at_medium_confidence() = runBlocking {
         val match = provider.lookup(CatalogQuery(popNumber = "52", franchise = null, character = null))
         assertNotNull(match)

@@ -9,11 +9,12 @@ import javax.inject.Inject
  * instant, privacy-perfect — and for a collector re-scanning a shelf it's the *most likely* hit, which is
  * what makes the "you already own this" callout work.
  *
- * Matching is anchored on the Pop number (the strong key) but Pop numbers restart per series, so a bare
- * number match is only medium confidence; franchise/character/series agreement raises it, and — crucially
- * — when the query *has* franchise/character context that the same-numbered item contradicts, the match
- * is rejected as a number coincidence so the cascade escalates rather than mis-identifying. (E.g. Popeye
- * #32 must not resolve to the owned Popeye #30, and a #52 in another franchise must not match Avatar #52.)
+ * Matching is anchored on the Pop number, but the number is NOT unique — it restarts per series — so a
+ * bare number match is only medium confidence; **franchise/character** agreement raises it (series does
+ * not corroborate: it's near-worthless for disambiguation), and — crucially — when the query *has*
+ * franchise/character context that the same-numbered item contradicts, the match is rejected as a number
+ * coincidence so the cascade escalates rather than mis-identifying. (E.g. Popeye #32 must not resolve to
+ * the owned Popeye #30, and a misread #82 whose franchise is Popeye must not match the owned DC #82.)
  */
 class LocalCollectionCatalogProvider @Inject constructor(
     private val repository: CollectibleRepository,
@@ -48,17 +49,17 @@ class LocalCollectionCatalogProvider @Inject constructor(
         val haystack = (pop.name + " " + pop.series.joinToString(" ")).lowercase()
         val franchiseMatch = !q.franchise.isNullOrBlank() && haystack.contains(q.franchise.lowercase())
         val characterMatch = !q.character.isNullOrBlank() && tokenOverlap(pop.name, q.character)
-        val seriesMatch = !q.series.isNullOrBlank() && pop.series.any { it.contains(q.series, ignoreCase = true) }
 
         val hasContext = !q.franchise.isNullOrBlank() || !q.character.isNullOrBlank()
-        val corroborated = franchiseMatch || characterMatch || seriesMatch
-        // Same number but the provided context contradicts it → a number coincidence, not a match.
+        // Only franchise/character corroborate. Series is near-worthless for disambiguation — Pop numbers
+        // restart per series and half the collection is "Pop! Digital" — so it must NOT rescue a
+        // same-number match when the franchise/character context contradicts (the #82→Parallax mis-ID).
+        val corroborated = franchiseMatch || characterMatch
         if (hasContext && !corroborated) return NUMBER_COINCIDENCE
 
         var score = NUMBER_ONLY
         if (franchiseMatch) score += FRANCHISE_BONUS
         if (characterMatch) score += CHARACTER_BONUS
-        if (seriesMatch) score += SERIES_BONUS
         return score.coerceAtMost(1f)
     }
 
@@ -89,7 +90,6 @@ class LocalCollectionCatalogProvider @Inject constructor(
         const val NUMBER_ONLY = 0.6f          // exact number, no corroborating context
         const val FRANCHISE_BONUS = 0.25f
         const val CHARACTER_BONUS = 0.2f
-        const val SERIES_BONUS = 0.1f
         const val NUMBER_COINCIDENCE = 0.4f   // number matches but context contradicts → below threshold
         const val MIN_CONFIDENCE = 0.6f       // number-only qualifies; the chain's threshold decides escalation
     }
