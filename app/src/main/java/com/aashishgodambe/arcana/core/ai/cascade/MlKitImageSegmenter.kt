@@ -37,7 +37,10 @@ class MlKitImageSegmenter @Inject constructor() : ImageSegmenter {
             repeat(MAX_ATTEMPTS) { attempt ->
                 try {
                     val result = Tasks.await(segmenter.process(image))
-                    return@withContext SegmentationResult(subjectBitmap = result.foregroundBitmap)
+                    // ML Kit returns the subject on a full-frame-sized transparent canvas, so the subject
+                    // is tiny within it. Crop to the opaque bounds so the capture UI shows the item large.
+                    val subject = result.foregroundBitmap?.let(::cropToContent)
+                    return@withContext SegmentationResult(subjectBitmap = subject)
                 } catch (e: Exception) {
                     if (!isModuleDownloading(e)) throw e
                     Log.i(TAG, "segmentation module still downloading (attempt ${attempt + 1}/$MAX_ATTEMPTS)")
@@ -53,6 +56,44 @@ class MlKitImageSegmenter @Inject constructor() : ImageSegmenter {
         }
     }
 
+    /**
+     * Crop [src] to the bounding box of its non-transparent pixels so the isolated subject fills the frame
+     * instead of floating tiny in a full-frame transparent canvas. Bounds are found on a ≤512px downscale
+     * (one [Bitmap.getPixels] instead of millions of [Bitmap.getPixel] calls), then mapped back and applied
+     * to the full-res original. Returns [src] unchanged if nothing opaque is found.
+     */
+    private fun cropToContent(src: Bitmap): Bitmap {
+        val scale = SCAN_MAX.toFloat() / maxOf(src.width, src.height).coerceAtLeast(1)
+        val sw = (src.width * scale).toInt().coerceAtLeast(1)
+        val sh = (src.height * scale).toInt().coerceAtLeast(1)
+        val small = Bitmap.createScaledBitmap(src, sw, sh, false)
+        val px = IntArray(sw * sh)
+        small.getPixels(px, 0, sw, 0, 0, sw, sh)
+        if (small != src) small.recycle()
+
+        var minX = sw; var minY = sh; var maxX = -1; var maxY = -1
+        for (y in 0 until sh) {
+            for (x in 0 until sw) {
+                if ((px[y * sw + x] ushr 24) != 0) {          // alpha != 0 → part of the subject
+                    if (x < minX) minX = x
+                    if (x > maxX) maxX = x
+                    if (y < minY) minY = y
+                    if (y > maxY) maxY = y
+                }
+            }
+        }
+        if (maxX < minX || maxY < minY) return src
+
+        val inv = 1f / scale
+        val padX = ((maxX - minX) * inv * PAD_FRACTION).toInt()
+        val padY = ((maxY - minY) * inv * PAD_FRACTION).toInt()
+        val left = ((minX * inv).toInt() - padX).coerceAtLeast(0)
+        val top = ((minY * inv).toInt() - padY).coerceAtLeast(0)
+        val right = (((maxX + 1) * inv).toInt() + padX).coerceAtMost(src.width)
+        val bottom = (((maxY + 1) * inv).toInt() + padY).coerceAtMost(src.height)
+        return if (right > left && bottom > top) Bitmap.createBitmap(src, left, top, right - left, bottom - top) else src
+    }
+
     private fun isModuleDownloading(e: Throwable): Boolean =
         generateSequence<Throwable>(e) { it.cause }
             .any { it.message?.contains("to be downloaded", ignoreCase = true) == true }
@@ -61,5 +102,7 @@ class MlKitImageSegmenter @Inject constructor() : ImageSegmenter {
         const val TAG = "MlKitSegmenter"
         const val MAX_ATTEMPTS = 20
         const val RETRY_DELAY_MS = 3000L
+        const val SCAN_MAX = 512            // longest edge of the downscale used to find opaque bounds
+        const val PAD_FRACTION = 0.04f      // breathing room around the cropped subject
     }
 }

@@ -116,11 +116,12 @@ class CaptureCascade @Inject constructor(
                 }.onFailure { Log.i(TAG, "on-device description unavailable: ${it.message}") }
             }
 
-            // 4. Walk the catalog chain on the OCR read (cloud escalation sees the full frame).
+            // 4. Walk the catalog chain on the OCR read (cloud escalation sees the full frame), then let
+            //    the box's positional read win over a stale catalog/collection record (box-over-retail).
             send(CascadeState.Matching)
             val entry = stage(timings, "catalog") {
                 catalogChain.identify(CascadeHintFusion.toQuery(layout, image = bitmap))
-            }
+            }?.let { CascadeReconciler.reconcile(it, layout) }
 
             // 5. Settle the identity now; then let any trailing on-device description surface as a late line.
             send(
@@ -145,24 +146,24 @@ class CaptureCascade @Inject constructor(
     }
 
     /**
-     * OCR the primary frame; if its Pop number is uncorroborated (or absent) and a burst is available, OCR
-     * the rest concurrently and majority-vote. Returns the winning (frame, layout) — the frame every
-     * downstream stage then reads. Keeps the vote in the engine so the UI stays a pure renderer.
+     * OCR the burst and majority-vote the Pop number, returning the winning (frame, layout) that every
+     * downstream stage reads. The vote is NOT gated on the primary read: a single-frame glyph misread
+     * (32→82 under backlight) looks perfectly confident on its own — right franchise, a plausible number —
+     * so only the cross-frame majority catches it. Frames are OCR'd concurrently to keep this ~1s. Keeps
+     * the vote in the engine so the UI stays a pure renderer.
      */
     private suspend fun resolveFrame(frames: List<Bitmap>): Pair<Bitmap, BoxLayout> {
-        val primary = frames.first()
-        val primaryLayout = BoxLayoutParser.parse(textExtractor.extract(primary).lines)
-        if (frames.size == 1 || OcrBurstVote.isCorroborated(primaryLayout)) return primary to primaryLayout
-
-        Log.i(TAG, "primary read uncorroborated (#${primaryLayout.popNumber}); bursting ${frames.size - 1} more")
-        val rest = coroutineScope {
-            frames.drop(1).map { frame ->
+        if (frames.size == 1) {
+            val only = frames.first()
+            return only to BoxLayoutParser.parse(textExtractor.extract(only).lines)
+        }
+        val candidates = coroutineScope {
+            frames.map { frame ->
                 async { frame to BoxLayoutParser.parse(textExtractor.extract(frame).lines) }
             }.awaitAll()
         }
-        val candidates = listOf(primary to primaryLayout) + rest
         val winner = candidates[OcrBurstVote.pick(candidates.map { it.second })]
-        Log.i(TAG, "burst vote → #${winner.second.popNumber}")
+        Log.i(TAG, "burst vote ${candidates.map { it.second.popNumber }} → #${winner.second.popNumber}")
         return winner
     }
 

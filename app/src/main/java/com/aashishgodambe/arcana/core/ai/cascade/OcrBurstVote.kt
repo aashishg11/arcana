@@ -1,20 +1,18 @@
 package com.aashishgodambe.arcana.core.ai.cascade
 
 /**
- * The escalation-burst decision, pure and JVM-tested (no android/ML Kit types). Week 8's honest failure
- * catalogue found single-frame OCR misreads a glyph under harsh backlight (32 → 82); the measured fix is
- * to burst a few frames only when the first read is weak, OCR them concurrently, and take the majority
- * vote on the Pop number — the winning frame then feeds the downstream stages.
- *
- * "Weak" = the first frame gave no *corroborated* number. A bare number with nothing around it is exactly
- * the case that misreads silently, so it's the trigger; a number backed by a franchise or character read
- * (the common owned-Pop case) is trusted and never bursts — keeping the happy path fast.
+ * The escalation-burst vote, pure and JVM-tested (no android/ML Kit types). Week 8's honest failure
+ * catalogue found single-frame OCR misreads a glyph under harsh backlight (32 → 82) — and such a misread
+ * looks perfectly confident on its own (right franchise, a plausible number), so it *can't* be detected
+ * from one frame. The fix is to always vote across the burst: OCR the frames, take the majority Pop
+ * number, and feed the winning frame downstream. [isCorroborated] is no longer a burst *gate* (that let
+ * misreads through) — it only breaks a vote tie toward a coherently-read frame.
  */
 object OcrBurstVote {
 
     /**
      * A Pop number is corroborated when the same positional read also surfaced a franchise or character —
-     * an independent signal that the box was read coherently, not a lone digit lifted from noise.
+     * an independent signal that the box was read coherently. Used only to break a vote tie ([pick]).
      */
     fun isCorroborated(layout: BoxLayout): Boolean =
         layout.popNumber != null && (layout.franchise != null || layout.character != null)
