@@ -1,9 +1,17 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
     id("com.google.gms.google-services")
+}
+
+// eBay Browse API creds live in the gitignored /ebay.properties (never committed). Absent on a fresh
+// clone → empty strings, and EbayBrowsePriceProvider degrades to the mock. Real secret stays out of git.
+val ebayProps = Properties().apply {
+    rootProject.file("ebay.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
 }
 
 android {
@@ -18,6 +26,9 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "EBAY_CLIENT_ID", "\"${ebayProps.getProperty("EBAY_CLIENT_ID", "")}\"")
+        buildConfigField("String", "EBAY_CLIENT_SECRET", "\"${ebayProps.getProperty("EBAY_CLIENT_SECRET", "")}\"")
     }
 
     buildTypes {

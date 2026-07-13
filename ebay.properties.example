@@ -1,0 +1,12 @@
+# eBay Browse API credentials — copy this file to `ebay.properties` (which is gitignored) and fill in
+# your PRODUCTION keyset values from https://developer.ebay.com/my/keys. Never commit the real file.
+#
+# These are the Client ID / Client Secret for the OAuth client-credentials grant that mints the
+# application access token the Browse API's item_summary/search needs. No RuName / redirect URI is
+# required for an application token.
+
+# "App ID (Client ID)" from your Production keyset
+EBAY_CLIENT_ID=
+
+# "Cert ID (Client Secret)" from your Production keyset
+EBAY_CLIENT_SECRET=

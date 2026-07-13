@@ -32,6 +32,10 @@ seed-data/*.raw.csv
 # Remove this line if you want the repo buildable on clone without supplying your own.
 /app/google-services.json
 
+# eBay Browse API credentials (production App ID / Cert ID) — secrets, kept local, never committed.
+# Copy ebay.properties.example → ebay.properties and fill in; Gradle reads it into BuildConfig.
+/ebay.properties
+
 # ExecuTorch harness (tools/executorch-harness/) is a standalone Gradle project;
 # the root /build rule is anchored, so ignore its build output explicitly.
 /tools/executorch-harness/build/
