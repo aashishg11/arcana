@@ -1,5 +1,8 @@
 package com.aashishgodambe.arcana.core.ai.catalog
 
+import android.graphics.Bitmap
+import com.aashishgodambe.arcana.core.ai.model.InferenceLocation
+
 /**
  * A source that can turn the cascade's fused hints into a collectible identity. One of the app's
  * pluggable seams: the cascade depends on this interface, and impls (local collection, UPC lookup, eBay,
@@ -33,6 +36,8 @@ data class CatalogQuery(
     val upc: String? = null,
     /** The on-device LLM's free-text description, for a weak tiebreak when structure is thin. */
     val descriptionHints: String? = null,
+    /** The (segmented) capture, for image-based providers like cloud multimodal. Others ignore it. */
+    val image: Bitmap? = null,
 )
 
 /**
@@ -52,4 +57,8 @@ data class CatalogEntry(
     val confidence: Float,
     /** Non-null when this identity is an item the user already owns (from the local collection). */
     val matchedLocalId: Long? = null,
+    /** Where this resolved — drives the capture UI's on-device↔cloud badge. */
+    val executedOn: InferenceLocation = InferenceLocation.OnDevice,
+    /** Provider latency in ms, when measured (cloud) — per-stage telemetry for the badge + benchmarks. */
+    val latencyMs: Long? = null,
 )
