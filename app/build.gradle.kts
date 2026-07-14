@@ -109,6 +109,9 @@ dependencies {
     implementation(libs.mlkit.genai.summarization)
     implementation(libs.androidx.concurrent.futures.ktx)   // ListenableFuture.await()
 
+    // --- On-device AI (ML Kit GenAI Rewriting — genai-writing-assistance: the listing writer) ---
+    implementation(libs.mlkit.genai.rewriting)
+
     // --- On-device AI (ML Kit GenAI Prompt API — cascade Stage 2, Gemini Nano multimodal) ---
     // Chosen over the fixed genai-image-description captioner: Gate A (Week 8 Day 1) found the captioner's
     // output safety-classifier deterministically refuses fantasy/horror Funko imagery (ErrorCode 11),

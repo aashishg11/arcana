@@ -20,12 +20,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -37,6 +42,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -46,10 +53,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import coil3.compose.AsyncImage
+import com.aashishgodambe.arcana.core.ai.model.InferenceResult
 import com.aashishgodambe.arcana.core.ai.model.MarketContext
 import com.aashishgodambe.arcana.core.ai.model.PriceResult
 import com.aashishgodambe.arcana.core.ai.pricing.EbaySearch
 import com.aashishgodambe.arcana.core.ai.pricing.PriceProviderChain
+import com.aashishgodambe.arcana.core.ai.writing.ListingWriter
 import com.aashishgodambe.arcana.core.data.repository.CollectibleRepository
 import com.aashishgodambe.arcana.core.domain.model.Collectible
 import com.aashishgodambe.arcana.core.domain.model.FunkoPop
@@ -59,8 +68,11 @@ import com.aashishgodambe.arcana.core.domain.usecase.SnapshotItemPrice
 import com.aashishgodambe.arcana.ui.component.ArcanaChip
 import com.aashishgodambe.arcana.ui.component.ChartRange
 import com.aashishgodambe.arcana.ui.component.ChipStyle
+import com.aashishgodambe.arcana.core.ai.model.InferenceLocation
 import com.aashishgodambe.arcana.ui.component.GhostButton
+import com.aashishgodambe.arcana.ui.component.InferenceBadge
 import com.aashishgodambe.arcana.ui.component.MarketSection
+import com.aashishgodambe.arcana.ui.component.StreamingText
 import com.aashishgodambe.arcana.ui.component.PlaceholderCard
 import com.aashishgodambe.arcana.ui.component.RangeSelector
 import com.aashishgodambe.arcana.ui.component.ValueSparkline
@@ -75,6 +87,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.Instant
@@ -88,11 +101,24 @@ data class DetailMarketState(
     val buyUrl: String = "",
 )
 
+/**
+ * The "Draft a listing" sheet state. The generated copy is grounded in the item's OWN data only; the eBay
+ * median is shown alongside (in the sheet UI) but never fed to the model — per eBay's 2025 AI terms.
+ */
+data class ListingDraftState(
+    val open: Boolean = false,
+    val running: Boolean = false,
+    val streaming: String? = null,
+    val text: String? = null,
+    val error: String? = null,
+)
+
 @HiltViewModel
 class DetailViewModel @Inject constructor(
     private val repository: CollectibleRepository,
     private val priceChain: PriceProviderChain,
     private val snapshotItemPrice: SnapshotItemPrice,
+    private val listingWriter: ListingWriter,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
     private val localId: Long = checkNotNull(savedStateHandle["localId"])
@@ -147,6 +173,29 @@ class DetailViewModel @Inject constructor(
 
     fun consumeSnapshotMessage() { _snapshotMessage.value = null }
 
+    private val _listing = MutableStateFlow(ListingDraftState())
+    val listing: StateFlow<ListingDraftState> = _listing.asStateFlow()
+
+    /** Open the sheet and stream an on-device listing draft grounded in the item's own data (no eBay data). */
+    fun openListingDraft() {
+        val pop = _collectible.value as? FunkoPop ?: return
+        if (_listing.value.running) return
+        _listing.value = ListingDraftState(open = true, running = true, streaming = "")
+        viewModelScope.launch {
+            listingWriter.draft(pop).collect { r ->
+                _listing.update {
+                    when (r) {
+                        is InferenceResult.Streaming -> it.copy(streaming = r.partialText)
+                        is InferenceResult.Success -> it.copy(running = false, text = r.fullText, streaming = null)
+                        is InferenceResult.Error -> it.copy(running = false, streaming = null, error = r.cause.message ?: "Couldn't draft a listing")
+                    }
+                }
+            }
+        }
+    }
+
+    fun closeListingDraft() { _listing.value = ListingDraftState() }
+
     private val _deleted = MutableStateFlow(false)
     val deleted: StateFlow<Boolean> = _deleted.asStateFlow()
 
@@ -167,6 +216,7 @@ fun DetailScreen(onBack: () -> Unit, vm: DetailViewModel = hiltViewModel()) {
     val snapshotting by vm.snapshotting.collectAsStateWithLifecycle()
     val snapshotMessage by vm.snapshotMessage.collectAsStateWithLifecycle()
     val deleted by vm.deleted.collectAsStateWithLifecycle()
+    val listing by vm.listing.collectAsStateWithLifecycle()
 
     // Once deleted, leave Detail — the item no longer exists.
     LaunchedEffect(deleted) { if (deleted) onBack() }
@@ -182,8 +232,11 @@ fun DetailScreen(onBack: () -> Unit, vm: DetailViewModel = hiltViewModel()) {
             market = market,
             snapshotting = snapshotting,
             snapshotMessage = snapshotMessage,
+            listing = listing,
             onSnapshot = vm::snapshotPrice,
             onSnapshotMessageShown = vm::consumeSnapshotMessage,
+            onDraftListing = vm::openListingDraft,
+            onCloseListing = vm::closeListingDraft,
             onDelete = vm::delete,
             onBack = onBack,
         )
@@ -198,14 +251,18 @@ private fun FunkoDetail(
     market: DetailMarketState,
     snapshotting: Boolean,
     snapshotMessage: String?,
+    listing: ListingDraftState,
     onSnapshot: () -> Unit,
     onSnapshotMessageShown: () -> Unit,
+    onDraftListing: () -> Unit,
+    onCloseListing: () -> Unit,
     onDelete: () -> Unit,
     onBack: () -> Unit,
 ) {
     val c = ArcanaTheme.colors
     val snackbarState = remember { SnackbarHostState() }
     var confirmDelete by remember { mutableStateOf(false) }
+    var overflowOpen by remember { mutableStateOf(false) }
     LaunchedEffect(snapshotMessage) {
         snapshotMessage?.let { snackbarState.showSnackbar(it); onSnapshotMessageShown() }
     }
@@ -217,7 +274,15 @@ private fun FunkoDetail(
             Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("‹", color = c.text, fontSize = 26.sp, modifier = Modifier.clickable(onClick = onBack))
                 Spacer(Modifier.weight(1f))
-                Text("⋯", color = c.textDim, fontSize = 22.sp)
+                Box {
+                    Text("⋯", color = c.textDim, fontSize = 22.sp, modifier = Modifier.clickable { overflowOpen = true })
+                    DropdownMenu(expanded = overflowOpen, onDismissRequest = { overflowOpen = false }, containerColor = c.surface) {
+                        DropdownMenuItem(
+                            text = { Text("✍ Draft a listing", color = c.text, fontSize = 14.sp) },
+                            onClick = { overflowOpen = false; onDraftListing() },
+                        )
+                    }
+                }
             }
             Box(Modifier.fillMaxWidth().aspectRatio(1.2f).clip(RoundedCornerShape(20.dp)).background(c.surface), contentAlignment = Alignment.Center) {
                 AsyncImage(model = pop.imageUrl, contentDescription = pop.name, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().padding(8.dp))
@@ -284,6 +349,72 @@ private fun FunkoDetail(
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel", color = c.textDim) } },
         )
+    }
+
+    if (listing.open) {
+        ListingSheet(
+            listing = listing,
+            medianCents = market.market?.medianActivePriceCents,
+            onDismiss = onCloseListing,
+        )
+    }
+}
+
+/**
+ * The "Draft a listing" sheet: on-device sale copy (`genai-writing-assistance`) grounded in the item's own
+ * data. The eBay median is shown here for the seller to price against — **it is never fed to the model**
+ * (eBay's 2025 AI terms). Streams token-by-token; copy-to-clipboard when done; honest empty state on refusal.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ListingSheet(listing: ListingDraftState, medianCents: Int?, onDismiss: () -> Unit) {
+    val c = ArcanaTheme.colors
+    val clipboard = LocalClipboardManager.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = c.sheet,
+        dragHandle = { Box(Modifier.padding(top = 6.dp).size(width = 38.dp, height = 4.dp).clip(RoundedCornerShape(999.dp)).background(c.hairlineStrong)) },
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Draft a listing", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = c.text, modifier = Modifier.weight(1f))
+                InferenceBadge(InferenceLocation.OnDevice)
+            }
+
+            // eBay price is shown for the seller to price against — deliberately separate from the AI output.
+            medianCents?.let {
+                Text(
+                    "eBay median ${formatUsd(it)} · set your own price",
+                    fontFamily = Mono, fontSize = 11.sp, color = c.textDim,
+                )
+            }
+
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surface)
+                    .border(1.dp, c.hairline, RoundedCornerShape(14.dp)).padding(14.dp),
+            ) {
+                when {
+                    listing.error != null -> Text(
+                        "The on-device writer couldn't draft this one. ${listing.error}",
+                        color = c.textDim, fontSize = 13.sp, lineHeight = 20.sp,
+                    )
+                    else -> StreamingText(
+                        text = listing.streaming ?: listing.text ?: "",
+                        streaming = listing.running,
+                        color = c.text,
+                    )
+                }
+            }
+
+            val finalText = listing.text
+            if (finalText != null) {
+                GhostButton("⧉ Copy listing", onClick = { clipboard.setText(AnnotatedString(finalText)) }, accent = true)
+            }
+            Spacer(Modifier.height(6.dp))
+        }
     }
 }
 

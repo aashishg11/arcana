@@ -210,6 +210,8 @@ fun SettingsScreen(
                 Spacer(Modifier.height(10.dp))
                 RagIndexCard(vm)
                 Spacer(Modifier.height(10.dp))
+                ListingWriterCard(vm)
+                Spacer(Modifier.height(10.dp))
                 CascadeHarnessCard(vm)
             }
 
@@ -443,6 +445,24 @@ private fun RagIndexCard(vm: SettingsViewModel) {
                 Spacer(Modifier.height(10.dp))
                 state.log.forEach { Text(it, fontFamily = Mono, fontSize = 11.sp, color = c.textDim, lineHeight = 16.sp) }
             }
+        }
+    }
+}
+
+@Composable
+private fun ListingWriterCard(vm: SettingsViewModel) {
+    val c = ArcanaTheme.colors
+    val lines by vm.listing.collectAsStateWithLifecycle()
+
+    SettingCard {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Listing writer", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.text)
+                Spacer(Modifier.height(3.dp))
+                lines.forEach { Text(it, fontFamily = Mono, fontSize = 11.sp, color = c.textDim, lineHeight = 16.sp) }
+            }
+            Spacer(Modifier.width(12.dp))
+            HarnessButton("Draft") { vm.draftListingSmoke() }
         }
     }
 }

@@ -20,6 +20,8 @@ import com.aashishgodambe.arcana.core.ai.rag.CollectionEmbedder
 import com.aashishgodambe.arcana.core.ai.rag.CollectionRetriever
 import com.aashishgodambe.arcana.core.ai.rag.EmbeddingGemmaEncoder
 import com.aashishgodambe.arcana.core.ai.rag.HybridCollectionRetriever
+import com.aashishgodambe.arcana.core.ai.writing.ListingWriter
+import com.aashishgodambe.arcana.core.ai.writing.MlKitListingWriter
 import com.aashishgodambe.arcana.core.data.repository.CollectibleRepository
 import com.aashishgodambe.arcana.core.data.settings.SettingsStore
 import dagger.Module
@@ -72,6 +74,11 @@ object AiModule {
     @Provides
     @Singleton
     fun provideCollectionRetriever(hybrid: HybridCollectionRetriever): CollectionRetriever = hybrid
+
+    /** The listing writer (`genai-writing-assistance`) — ML Kit Rewriting over the item's own data. */
+    @Provides
+    @Singleton
+    fun provideListingWriter(@ApplicationContext context: Context): ListingWriter = MlKitListingWriter(context)
 
     /**
      * The capture-cascade engine (Week 8), wired with its stage seams and the ordered catalog chain

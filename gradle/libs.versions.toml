@@ -23,6 +23,7 @@ lifecycle = "2.10.0"
 firebaseAi = "17.13.0"
 firebaseAiOndevice = "16.0.0-beta03"
 mlkitGenaiSummarization = "1.0.0-beta1"
+mlkitGenaiRewriting = "1.0.0-beta1"
 mlkitGenaiPrompt = "1.0.0-beta2"
 mlkitTextRecognition = "16.0.1"
 mlkitSubjectSegmentation = "16.0.0-beta1"
@@ -59,6 +60,7 @@ firebase-ai-ondevice = { group = "com.google.firebase", name = "firebase-ai-onde
 firebase-appcheck = { group = "com.google.firebase", name = "firebase-appcheck" }
 firebase-appcheck-debug = { group = "com.google.firebase", name = "firebase-appcheck-debug" }
 mlkit-genai-summarization = { group = "com.google.mlkit", name = "genai-summarization", version.ref = "mlkitGenaiSummarization" }
+mlkit-genai-rewriting = { group = "com.google.mlkit", name = "genai-rewriting", version.ref = "mlkitGenaiRewriting" }
 mlkit-genai-prompt = { group = "com.google.mlkit", name = "genai-prompt", version.ref = "mlkitGenaiPrompt" }
 mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition", version.ref = "mlkitTextRecognition" }
 mlkit-subject-segmentation = { group = "com.google.android.gms", name = "play-services-mlkit-subject-segmentation", version.ref = "mlkitSubjectSegmentation" }

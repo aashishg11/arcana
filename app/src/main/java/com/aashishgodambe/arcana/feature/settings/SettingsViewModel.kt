@@ -16,8 +16,13 @@ import com.aashishgodambe.arcana.core.ai.rag.CollectionDocument
 import com.aashishgodambe.arcana.core.ai.rag.CollectionEmbedder
 import com.aashishgodambe.arcana.core.ai.rag.CollectionIndexer
 import com.aashishgodambe.arcana.core.ai.rag.CollectionVectorStore
+import com.aashishgodambe.arcana.core.ai.model.InferenceResult
 import com.aashishgodambe.arcana.core.ai.rag.EmbeddingMath
+import com.aashishgodambe.arcana.core.ai.writing.ListingWriter
 import com.aashishgodambe.arcana.core.data.repository.CollectibleRepository
+import com.aashishgodambe.arcana.core.domain.model.FunkoPop
+import android.util.Log
+import java.time.LocalDate
 import com.aashishgodambe.arcana.core.data.settings.SettingsStore
 import com.aashishgodambe.arcana.core.data.settings.ThemeMode
 import com.aashishgodambe.arcana.core.data.worker.WeeklyPriceSyncScheduler
@@ -43,6 +48,7 @@ class SettingsViewModel @Inject constructor(
     private val vectorStore: CollectionVectorStore,
     private val embedder: CollectionEmbedder,
     private val repository: CollectibleRepository,
+    private val listingWriter: ListingWriter,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -226,6 +232,41 @@ class SettingsViewModel @Inject constructor(
             }
         }
     }
+
+    // --- Dev harness: draft a listing for a normal + a horror pop, to probe the safety filter (debug-only) ---
+
+    private val _listing = MutableStateFlow(listOf("Drafts a listing for a normal and a horror pop (checks the safety filter)."))
+    val listing: StateFlow<List<String>> = _listing.asStateFlow()
+
+    fun draftListingSmoke() {
+        viewModelScope.launch {
+            for ((label, pop) in listOf("Aang (normal)" to testPop("Fire Nation Aang", listOf("Avatar The Last Airbender")),
+                "Pennywise (horror)" to testPop("Pennywise with Spider Legs", listOf("IT")))) {
+                _listing.value = listOf("$label…")
+                listingWriter.draft(pop).collect { r ->
+                    when (r) {
+                        is InferenceResult.Streaming -> _listing.value = listOf("$label ›", r.partialText)
+                        is InferenceResult.Success -> {
+                            Log.i("ListingSmoke", "$label OK (${r.metadata.totalLatencyMs}ms): ${r.fullText}")
+                            _listing.value = listOf("$label ✓ ${r.metadata.totalLatencyMs}ms", r.fullText)
+                        }
+                        is InferenceResult.Error -> {
+                            Log.i("ListingSmoke", "$label ERROR: ${r.cause.message}")
+                            _listing.value = listOf("$label ✗ ${r.cause.message}")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun testPop(name: String, series: List<String>) = FunkoPop(
+        localId = 0, name = name, brand = "Funko", imageUrl = null, estimatedValueCents = 1000,
+        lastKnownValueCents = null, quantity = 1, itemCondition = "Mint", packagingCondition = "Mint",
+        series = series, productionTags = emptyList(), dateAdded = LocalDate.of(2023, 1, 1),
+        pricePaidCents = null, storageLocation = null, upc = "0", popNumber = "1",
+        exclusiveTo = null, isNftRedeemable = false,
+    )
 }
 
 /** Debug dev-harness state for the RAG index + query. */
