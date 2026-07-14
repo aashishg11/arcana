@@ -123,6 +123,11 @@ dependencies {
     // --- On-device AI (own-model: self-quantized Gemma 3 1B via MediaPipe LLM Inference / LiteRT-LM) ---
     implementation(libs.mediapipe.tasks.genai)
 
+    // --- On-device RAG (EmbeddingGemma-300M on the LiteRT interpreter — Ask Arcana semantic retrieval) ---
+    // The interpreter runtime only; the model .tflite is side-loaded (gated Gemma, like the own-model engine)
+    // and the tokenizer lives behind the EmbeddingTokenizer seam (resolved separately).
+    implementation(libs.litert)
+
     // --- Data layer ---
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)

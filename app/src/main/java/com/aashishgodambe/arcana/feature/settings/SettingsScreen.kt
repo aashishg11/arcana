@@ -48,6 +48,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aashishgodambe.arcana.BuildConfig
 import com.aashishgodambe.arcana.core.ai.LiteRtGeminiService
+import com.aashishgodambe.arcana.core.ai.rag.EmbeddingBenchmark
+import com.aashishgodambe.arcana.core.ai.rag.EmbeddingGemmaEncoder
 import com.aashishgodambe.arcana.core.ai.capability.ModelReadiness
 import com.aashishgodambe.arcana.core.ai.model.AskEngine
 import com.aashishgodambe.arcana.core.ai.model.InferenceResult
@@ -203,6 +205,8 @@ fun SettingsScreen(
                 Spacer(Modifier.height(10.dp))
                 LiteRtSmokeCard()
                 Spacer(Modifier.height(10.dp))
+                EmbeddingSmokeCard()
+                Spacer(Modifier.height(10.dp))
                 CascadeHarnessCard(vm)
             }
 
@@ -349,6 +353,47 @@ private fun LiteRtSmokeCard() {
                                     is InferenceResult.Error -> "Failed: ${r.cause.message}"
                                 }
                             }
+                            running = false
+                        }
+                    }
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmbeddingSmokeCard() {
+    val c = ArcanaTheme.colors
+    val context = LocalContext.current
+    val encoder = remember { EmbeddingGemmaEncoder(context.applicationContext) }
+    val scope = rememberCoroutineScope()
+    var running by remember { mutableStateOf(false) }
+    var status by remember {
+        mutableStateOf("Embeds sample docs on-device (EmbeddingGemma/LiteRT) and benchmarks 768/256/128 retrieval.")
+    }
+
+    SettingCard {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Embedding benchmark", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.text)
+                Spacer(Modifier.height(3.dp))
+                Text(status, fontFamily = Mono, fontSize = 11.sp, color = c.textFaint, lineHeight = 15.sp)
+            }
+            Spacer(Modifier.width(12.dp))
+            Text(
+                if (running) "Running…" else "Run",
+                fontFamily = Mono, fontSize = 12.sp, fontWeight = FontWeight.Medium,
+                color = if (running) c.textDim else c.iris,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .border(1.dp, c.hairline, RoundedCornerShape(8.dp))
+                    .clickable(enabled = !running) {
+                        running = true
+                        status = if (encoder.isModelAvailable()) "Embedding…" else "Model not installed — side-load it."
+                        scope.launch {
+                            status = runCatching { EmbeddingBenchmark.run(encoder) }
+                                .getOrElse { "Failed: ${it.message}" }
                             running = false
                         }
                     }
