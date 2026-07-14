@@ -78,6 +78,19 @@ interface CollectibleRepository {
     suspend fun search(query: String, limit: Int): List<Collectible>
 
     /**
+     * All items matching [query] (same AND-keyword semantics as [search] but *un-truncated*), most
+     * valuable first — the structured-retrieval count path ("how many Marvel?" → the full 97, not 12).
+     * Empty when the query has no salient terms.
+     */
+    suspend fun matching(query: String): List<Collectible>
+
+    /** Every NFT-redeemable Pop (the catalog boolean flag), most valuable first — the structured NFT filter. */
+    suspend fun nftRedeemable(): List<Collectible>
+
+    /** Every collectible whose date-added falls in [year], most valuable first — the structured date filter. */
+    suspend fun addedInYear(year: Int): List<Collectible>
+
+    /**
      * Persists imported items: each becomes a collectible row + (for Funko) a metadata row +
      * series junction rows (canonical, deduped) + one import-time value snapshot. [onProgress] is
      * invoked after each item (written-so-far, the item) for a live import feed. Returns the count.

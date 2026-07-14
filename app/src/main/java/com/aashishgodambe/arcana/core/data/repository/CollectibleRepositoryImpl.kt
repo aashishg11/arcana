@@ -118,7 +118,9 @@ class CollectibleRepositoryImpl @Inject constructor(
     override suspend fun getMostValuable(limit: Int): List<Collectible> =
         collectibleDao.getMostValuableWithDetails(limit).mapNotNull { it.toDomain() }
 
-    override suspend fun search(query: String, limit: Int): List<Collectible> {
+    override suspend fun search(query: String, limit: Int): List<Collectible> = matching(query).take(limit)
+
+    override suspend fun matching(query: String): List<Collectible> {
         val terms = salientTerms(query)
         if (terms.isEmpty()) return emptyList()
         // AND semantics: an item must match EVERY term, so a multi-word query like "power rangers"
@@ -133,8 +135,16 @@ class CollectibleRepositoryImpl @Inject constructor(
         val commonIds = perTerm.map { it.keys }.reduce { acc, ids -> acc intersect ids }
         return perTerm.first().filterKeys { it in commonIds }.values
             .sortedByDescending { it.estimatedValueCents }
-            .take(limit)
     }
+
+    override suspend fun nftRedeemable(): List<Collectible> =
+        collectibleDao.nftRedeemableWithDetails().mapNotNull { it.toDomain() }
+
+    override suspend fun addedInYear(year: Int): List<Collectible> =
+        collectibleDao.addedBetweenWithDetails(
+            LocalDate.of(year, 1, 1).toEpochDay(),
+            LocalDate.of(year, 12, 31).toEpochDay(),
+        ).mapNotNull { it.toDomain() }
 
     override suspend fun importFrom(
         items: List<ImportedItem>,

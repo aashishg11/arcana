@@ -6,7 +6,8 @@ import com.aashishgodambe.arcana.core.ai.GeminiService
 import com.aashishgodambe.arcana.core.ai.model.InferenceMetadata
 import com.aashishgodambe.arcana.core.ai.model.InferenceResult
 import com.aashishgodambe.arcana.core.ai.model.RoutingHint
-import com.aashishgodambe.arcana.core.data.repository.CollectibleRepository
+import com.aashishgodambe.arcana.core.ai.rag.CollectionRetriever
+import com.aashishgodambe.arcana.core.ai.rag.RetrievalStrategy
 import com.aashishgodambe.arcana.core.domain.model.Collectible
 import com.aashishgodambe.arcana.core.domain.model.FunkoPop
 import com.aashishgodambe.arcana.ui.formatUsd
@@ -30,6 +31,8 @@ data class AskTurn(
     val answer: String? = null,
     val metadata: InferenceMetadata? = null,
     val error: String? = null,
+    /** Which retrieval path grounded this turn — the inspectable "how was this answered?" signal. */
+    val strategy: RetrievalStrategy? = null,
 )
 
 data class AskUiState(
@@ -43,7 +46,7 @@ data class AskUiState(
 @HiltViewModel
 class AskViewModel @Inject constructor(
     private val gemini: GeminiService,
-    private val repository: CollectibleRepository,
+    private val retriever: CollectionRetriever,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AskUiState())
@@ -81,19 +84,16 @@ class AskViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            // Ground on the keyword-relevant subset. If the question has no salient terms it's either
-            // a follow-up ("tell me what they are") — reuse the current thread's focus — or a ranking
-            // question ("what's my most valuable?") on a fresh thread — fall back to top value. Keeping
-            // matches un-mixed stops top-value items leaking into a "do I have X?" answer. Lexical
-            // retrieval for now; Week-9 upgrades it to semantic embeddings.
-            val relevant = repository.search(q, RELEVANT_LIMIT)
-            val grounded = relevant.ifEmpty {
-                lastGrounding.ifEmpty { repository.getMostValuable(TOP_VALUE_LIMIT) }
-            }
-            lastGrounding = grounded
-            updateLastTurn { it.copy(grounding = grounded.map(::groundingOf)) }
+            // The hybrid retriever classifies and grounds: a count/filter question comes back with an
+            // authoritative fact, a fuzzy one with semantic matches, a back-reference as FollowUp (reuse
+            // the thread's focus). Only a FollowUp reuses lastGrounding — a structured "0 Marvel" legitimately
+            // has no items but a real fact, so we must not paper over it with the previous turn's items.
+            val grounding = retriever.retrieve(q)
+            val grounded = if (grounding.strategy == RetrievalStrategy.FollowUp) lastGrounding else grounding.items
+            if (grounding.strategy != RetrievalStrategy.FollowUp && grounded.isNotEmpty()) lastGrounding = grounded
+            updateLastTurn { it.copy(grounding = grounded.map(::groundingOf), strategy = grounding.strategy) }
 
-            val prompt = buildPrompt(q, grounded, history)
+            val prompt = buildPrompt(q, grounded, grounding.facts, history)
             gemini.generateText(prompt, routingHint).collect { result ->
                 when (result) {
                     is InferenceResult.Streaming ->
@@ -123,12 +123,17 @@ class AskViewModel @Inject constructor(
     private fun groundingOf(c: Collectible): GroundingItem =
         GroundingItem(localId = c.localId, label = "${c.name} · ${formatUsd(c.estimatedValueCents)}")
 
-    private fun buildPrompt(question: String, items: List<Collectible>, history: List<AskTurn>): String {
+    private fun buildPrompt(
+        question: String,
+        items: List<Collectible>,
+        facts: List<String>,
+        history: List<AskTurn>,
+    ): String {
         val lines = items.mapIndexed { i, c ->
             val series = c.series.joinToString(", ").takeIf { it.isNotBlank() }?.let { " — series: $it" } ?: ""
             val nft = if (c is FunkoPop && c.isNftRedeemable) " (NFT redeemable)" else ""
             "${i + 1}. ${c.name} — ${formatUsd(c.estimatedValueCents)}$series$nft"
-        }.joinToString("\n").ifEmpty { "(no matching items)" }
+        }.joinToString("\n").ifEmpty { "(no items retrieved)" }
 
         val conversation = history.takeLast(HISTORY_TURNS)
             .flatMap { t -> listOfNotNull("User: ${t.question}", t.answer?.let { "Arcana: $it" }) }
@@ -138,20 +143,27 @@ class AskViewModel @Inject constructor(
         // conversation into a trimIndent block would zero out the common indent and break the dedent.
         val instructions = """
             You are Arcana, a private assistant for a collectibles portfolio.
-            The list below is the subset of the user's collection retrieved for their question.
-            It is NOT the whole collection.
+            The items below are the subset retrieved for the question — NOT the whole collection, so never
+            infer a total by counting them.
 
             Rules:
-            - Answer using ONLY these rows. Do not invent items or use outside knowledge about which
-              character belongs to which franchise — rely on the "series" field shown.
-            - If no row matches the question, say you don't see any matching items in what was retrieved.
-            - Be concise (2-3 sentences). State counts and dollar values exactly.
+            - If "Verified facts" are given, they are computed from the WHOLE collection and are correct —
+              state those counts and dollar figures EXACTLY, and don't contradict them from the item list.
+            - Otherwise answer using ONLY the item rows. Rely on the "series" field for franchise; don't
+              invent items or use outside knowledge.
+            - If nothing matches, say you don't see any matching items.
+            - Be concise (2-3 sentences).
         """.trimIndent()
 
         return buildString {
             appendLine(instructions)
             appendLine()
-            appendLine("Items (most valuable first):")
+            if (facts.isNotEmpty()) {
+                appendLine("Verified facts (state exactly):")
+                facts.forEach { appendLine("- $it") }
+                appendLine()
+            }
+            appendLine("Retrieved items (most relevant first):")
             appendLine(lines)
             appendLine()
             if (conversation.isNotBlank()) {
@@ -165,8 +177,6 @@ class AskViewModel @Inject constructor(
     }
 
     private companion object {
-        const val TOP_VALUE_LIMIT = 3
-        const val RELEVANT_LIMIT = 12
         const val HISTORY_TURNS = 3
     }
 }

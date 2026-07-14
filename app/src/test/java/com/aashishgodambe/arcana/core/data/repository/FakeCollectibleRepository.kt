@@ -38,11 +38,21 @@ class FakeCollectibleRepository(items: List<Collectible> = emptyList()) : Collec
     override suspend fun allCollectibles(): List<Collectible> = sorted
     override suspend fun getMostValuable(limit: Int): List<Collectible> = sorted.take(limit)
 
-    override suspend fun search(query: String, limit: Int): List<Collectible> {
+    override suspend fun search(query: String, limit: Int): List<Collectible> = matching(query).take(limit)
+
+    override suspend fun matching(query: String): List<Collectible> {
         val terms = query.lowercase().split(Regex("[^a-z0-9]+")).filter { it.length >= 3 }
         if (terms.isEmpty()) return emptyList()
-        return sorted.filter { c -> terms.all { c.name.contains(it, ignoreCase = true) } }.take(limit)
+        return sorted.filter { c ->
+            terms.all { t -> (c.name + " " + c.series.joinToString(" ")).contains(t, ignoreCase = true) }
+        }
     }
+
+    override suspend fun nftRedeemable(): List<Collectible> =
+        sorted.filterIsInstance<FunkoPop>().filter { it.isNftRedeemable }
+
+    override suspend fun addedInYear(year: Int): List<Collectible> =
+        sorted.filter { it.dateAdded.year == year }
 
     override fun observeValueHistory(localId: Long): Flow<List<ValueSnapshot>> = flowOf(snapshotsFor(localId))
 

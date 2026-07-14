@@ -3,20 +3,13 @@ package com.aashishgodambe.arcana.feature.ask
 import app.cash.turbine.test
 import com.aashishgodambe.arcana.core.ai.FakeGeminiService
 import com.aashishgodambe.arcana.core.ai.model.InferenceLocation
-import com.aashishgodambe.arcana.core.data.database.entity.CollectionGroup
-import com.aashishgodambe.arcana.core.data.database.entity.SnapshotTrigger
-import com.aashishgodambe.arcana.core.data.database.entity.ValueSource
-import com.aashishgodambe.arcana.core.data.importer.model.ImportedItem
-import com.aashishgodambe.arcana.core.data.repository.CollectibleRepository
+import com.aashishgodambe.arcana.core.ai.rag.CollectionRetriever
+import com.aashishgodambe.arcana.core.ai.rag.Grounding
+import com.aashishgodambe.arcana.core.ai.rag.RetrievalStrategy
 import com.aashishgodambe.arcana.core.domain.model.Collectible
 import com.aashishgodambe.arcana.core.domain.model.FunkoPop
-import com.aashishgodambe.arcana.core.domain.model.PortfolioPoint
-import com.aashishgodambe.arcana.core.domain.model.ValueSnapshot
-import java.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -39,17 +32,20 @@ class AskViewModelTest {
     @After fun tearDown() = Dispatchers.resetMain()
 
     @Test
-    fun `grounds the prompt in the top items and streams an on-device answer`() = runTest(dispatcher) {
-        val repo = repositoryWith(
-            funko(1, "Fire Nation Aang", 59_000, nft = true),
-            funko(2, "Daenerys Targaryen With Egg", 59_000, nft = true),
-            funko(3, "Daemon Targaryen", 45_000, nft = false),
+    fun `grounds the prompt in the retrieved items and streams an on-device answer`() = runTest(dispatcher) {
+        val grounding = Grounding(
+            items = listOf(
+                funko(1, "Fire Nation Aang", 59_000),
+                funko(2, "Daenerys Targaryen With Egg", 59_000),
+                funko(3, "Daemon Targaryen", 45_000),
+            ),
+            strategy = RetrievalStrategy.Structured,
         )
         val gemini = FakeGeminiService(
             cannedResponse = "Your most valuable item is Fire Nation Aang at \$590.",
             executedOn = InferenceLocation.OnDevice,
         )
-        val vm = AskViewModel(gemini, repo)
+        val vm = AskViewModel(gemini, retrieverReturning(grounding))
 
         vm.state.test {
             assertEquals(0, awaitItem().turns.size) // initial idle state
@@ -59,9 +55,9 @@ class AskViewModelTest {
             val turn = awaitSettled().turns.single()
             assertEquals("What's my most valuable item?", turn.question)
             assertTrue(turn.answer!!.contains("$590"))
-            // badge reflects where it ran
             assertEquals(InferenceLocation.OnDevice, turn.metadata?.executedOn)
-            // retrieved-context strip shows the grounded top 3, most valuable first
+            assertEquals(RetrievalStrategy.Structured, turn.strategy)
+            // retrieved-context strip shows the grounded items, most relevant first
             assertEquals(3, turn.grounding.size)
             assertEquals("Fire Nation Aang · \$590", turn.grounding.first().label)
             assertNull(turn.streamingAnswer)
@@ -71,9 +67,34 @@ class AskViewModelTest {
     }
 
     @Test
+    fun `a follow-up reuses the previous turn's grounding`() = runTest(dispatcher) {
+        val first = Grounding(listOf(funko(1, "Deadpool", 30_000)), strategy = RetrievalStrategy.Semantic)
+        // The retriever returns FollowUp (no items) for the second turn; the VM must reuse the first grounding.
+        val retriever = object : CollectionRetriever {
+            var calls = 0
+            override suspend fun retrieve(query: String): Grounding {
+                calls++
+                return if (calls == 1) first else Grounding(emptyList(), strategy = RetrievalStrategy.FollowUp)
+            }
+        }
+        val vm = AskViewModel(FakeGeminiService(cannedResponse = "ok"), retriever)
+
+        vm.state.test {
+            awaitItem()
+            vm.ask("any deadpool?")
+            awaitSettled()
+            vm.ask("tell me more")
+            val turn = awaitSettled().turns.last()
+            assertEquals(RetrievalStrategy.FollowUp, turn.strategy)
+            assertEquals(listOf("Deadpool · \$300"), turn.grounding.map { it.label })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `surfaces an error and stops running when inference fails`() = runTest(dispatcher) {
         val gemini = FakeGeminiService(error = IllegalStateException("Nano did not run"))
-        val vm = AskViewModel(gemini, repositoryWith())
+        val vm = AskViewModel(gemini, retrieverReturning(Grounding(emptyList(), strategy = RetrievalStrategy.Semantic)))
 
         vm.state.test {
             awaitItem() // initial
@@ -97,52 +118,16 @@ class AskViewModelTest {
         }
     }
 
-    private fun funko(id: Long, name: String, valueCents: Int, nft: Boolean) = FunkoPop(
+    private fun funko(id: Long, name: String, valueCents: Int) = FunkoPop(
         localId = id, name = name, brand = "Funko", imageUrl = null,
         estimatedValueCents = valueCents, lastKnownValueCents = null, quantity = 1,
         itemCondition = "Mint", packagingCondition = "Mint", series = emptyList(),
         productionTags = emptyList(), dateAdded = LocalDate.of(2023, 1, 1),
         pricePaidCents = null, storageLocation = null,
-        upc = "0", popNumber = null, exclusiveTo = null, isNftRedeemable = nft,
+        upc = "0", popNumber = null, exclusiveTo = null, isNftRedeemable = false,
     )
 
-    /** Minimal fake — only [getMostValuable] matters to the ViewModel under test. */
-    private fun repositoryWith(vararg items: Collectible) = object : CollectibleRepository {
-        private val sorted = items.sortedByDescending { it.estimatedValueCents }
-        override suspend fun getMostValuable(limit: Int): List<Collectible> = sorted.take(limit)
-        override suspend fun search(query: String, limit: Int): List<Collectible> {
-            val terms = query.split(" ").filter { it.length >= 3 }
-            if (terms.isEmpty()) return emptyList()
-            return sorted.filter { c -> terms.all { c.name.contains(it, ignoreCase = true) } }.take(limit)
-        }
-        override fun observeCollection(): Flow<List<Collectible>> = emptyFlow()
-        override fun observeByList(listName: String): Flow<List<Collectible>> = emptyFlow()
-        override fun observeCount(): Flow<Int> = emptyFlow()
-        override fun observeTotalValueCents(): Flow<Int> = emptyFlow()
-        override fun observeCopyCount(): Flow<Int> = emptyFlow()
-        override fun observeListBreakdown(): Flow<List<CollectionGroup>> = emptyFlow()
-        override suspend fun getById(localId: Long): Collectible? = null
-        override suspend fun allCollectibles(): List<Collectible> = sorted
-        override fun observeValueHistory(localId: Long): Flow<List<ValueSnapshot>> = emptyFlow()
-        override fun observePortfolioSeries(): Flow<List<PortfolioPoint>> = emptyFlow()
-        override suspend fun listValueSeries(): Map<String, List<PortfolioPoint>> = emptyMap()
-        override suspend fun latestSnapshot(localId: Long): ValueSnapshot? = null
-        override suspend fun recordSnapshot(
-            localId: Long,
-            valueCents: Int,
-            source: ValueSource,
-            trigger: SnapshotTrigger,
-            at: Instant,
-        ) = Unit
-        override suspend fun isHistorySeeded(): Boolean = true
-        override suspend fun replaceHistories(histories: Map<Long, List<ValueSnapshot>>) = Unit
-        override suspend fun importFrom(
-            items: List<ImportedItem>,
-            onProgress: (written: Int, item: ImportedItem) -> Unit,
-        ): Int = 0
-        override suspend fun saveCaptured(item: ImportedItem): Long = 0
-        override suspend fun incrementQuantity(localId: Long): Int = 0
-        override suspend fun listNames(): List<String> = emptyList()
-        override suspend fun delete(localId: Long) = Unit
+    private fun retrieverReturning(grounding: Grounding) = object : CollectionRetriever {
+        override suspend fun retrieve(query: String): Grounding = grounding
     }
 }

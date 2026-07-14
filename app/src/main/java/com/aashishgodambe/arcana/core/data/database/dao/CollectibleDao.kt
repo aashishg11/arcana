@@ -107,6 +107,26 @@ interface CollectibleDao {
     )
     suspend fun searchWithDetails(like: String, limit: Int): List<CollectibleWithDetails>
 
+    /** NFT-redeemable Pops (the catalog boolean on funko_metadata), most valuable first — structured filter. */
+    @Transaction
+    @Query(
+        """
+        SELECT c.* FROM collectibles c
+        JOIN funko_metadata f ON f.collectibleLocalId = c.localId
+        WHERE f.isNftRedeemable = 1
+        ORDER BY c.estimatedValueCents DESC
+        """,
+    )
+    suspend fun nftRedeemableWithDetails(): List<CollectibleWithDetails>
+
+    /** Items whose date-added (stored as epoch-day) falls in a range, most valuable first — structured date filter. */
+    @Transaction
+    @Query(
+        "SELECT * FROM collectibles WHERE dateAdded BETWEEN :startEpochDay AND :endEpochDay " +
+            "ORDER BY estimatedValueCents DESC",
+    )
+    suspend fun addedBetweenWithDetails(startEpochDay: Long, endEpochDay: Long): List<CollectibleWithDetails>
+
     @Transaction
     @Query("SELECT * FROM collectibles WHERE localId = :id")
     suspend fun getWithSeries(id: Long): CollectibleWithSeries?

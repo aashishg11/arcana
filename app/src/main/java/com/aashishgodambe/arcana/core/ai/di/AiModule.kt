@@ -17,7 +17,9 @@ import com.aashishgodambe.arcana.core.ai.catalog.CatalogProviderChain
 import com.aashishgodambe.arcana.core.ai.catalog.CloudMultimodalCatalogProvider
 import com.aashishgodambe.arcana.core.ai.catalog.LocalCollectionCatalogProvider
 import com.aashishgodambe.arcana.core.ai.rag.CollectionEmbedder
+import com.aashishgodambe.arcana.core.ai.rag.CollectionRetriever
 import com.aashishgodambe.arcana.core.ai.rag.EmbeddingGemmaEncoder
+import com.aashishgodambe.arcana.core.ai.rag.HybridCollectionRetriever
 import com.aashishgodambe.arcana.core.data.repository.CollectibleRepository
 import com.aashishgodambe.arcana.core.data.settings.SettingsStore
 import dagger.Module
@@ -65,6 +67,11 @@ object AiModule {
     @Singleton
     fun provideCollectionEmbedder(@ApplicationContext context: Context): CollectionEmbedder =
         EmbeddingGemmaEncoder(context)
+
+    /** The Ask grounding seam — the hybrid router (structured SQL + semantic vectors + lexical fallback). */
+    @Provides
+    @Singleton
+    fun provideCollectionRetriever(hybrid: HybridCollectionRetriever): CollectionRetriever = hybrid
 
     /**
      * The capture-cascade engine (Week 8), wired with its stage seams and the ordered catalog chain
