@@ -30,6 +30,7 @@ import androidx.lifecycle.viewModelScope
 import com.aashishgodambe.arcana.core.data.importer.CollectionImporter
 import com.aashishgodambe.arcana.core.data.importer.model.ImportResult
 import com.aashishgodambe.arcana.core.data.repository.CollectibleRepository
+import com.aashishgodambe.arcana.core.data.worker.EmbeddingIndexScheduler
 import com.aashishgodambe.arcana.ui.component.GhostButton
 import com.aashishgodambe.arcana.ui.component.Hairline
 import com.aashishgodambe.arcana.ui.formatUsd
@@ -55,6 +56,7 @@ sealed interface ImportUiState {
 class ImportViewModel @Inject constructor(
     private val importer: CollectionImporter,
     private val repository: CollectibleRepository,
+    private val indexScheduler: EmbeddingIndexScheduler,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -79,6 +81,8 @@ class ImportViewModel @Inject constructor(
                         _state.value = ImportUiState.Writing(written, total, feed.toList())
                     }
                     _state.value = ImportUiState.Complete(count, result.itemsSkipped)
+                    // Embed the freshly-imported collection for Ask's semantic retrieval.
+                    indexScheduler.enqueue()
                 }
             }
         }

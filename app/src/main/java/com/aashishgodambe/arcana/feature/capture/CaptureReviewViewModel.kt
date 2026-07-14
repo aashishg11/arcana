@@ -15,6 +15,7 @@ import com.aashishgodambe.arcana.core.data.database.entity.CollectibleCategory
 import com.aashishgodambe.arcana.core.data.importer.model.FunkoImportMetadata
 import com.aashishgodambe.arcana.core.data.importer.model.ImportedItem
 import com.aashishgodambe.arcana.core.data.repository.CollectibleRepository
+import com.aashishgodambe.arcana.core.data.worker.EmbeddingIndexScheduler
 import com.aashishgodambe.arcana.core.domain.model.FunkoPop
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,6 +42,7 @@ class CaptureReviewViewModel @Inject constructor(
     private val cascade: CaptureCascade,
     private val priceChain: PriceProviderChain,
     private val repository: CollectibleRepository,
+    private val indexScheduler: EmbeddingIndexScheduler,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(CaptureReviewUiState())
@@ -104,6 +106,8 @@ class CaptureReviewViewModel @Inject constructor(
         viewModelScope.launch {
             val item = capturedItem(entry, listName, _state.value.market?.medianActivePriceCents ?: 0)
             _state.update { it.copy(saving = false, savedId = repository.saveCaptured(item)) }
+            // Fold the just-saved pop into the RAG index (incremental → embeds only the new item).
+            indexScheduler.enqueue()
         }
     }
 

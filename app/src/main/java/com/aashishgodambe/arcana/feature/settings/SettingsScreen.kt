@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -206,6 +207,8 @@ fun SettingsScreen(
                 LiteRtSmokeCard()
                 Spacer(Modifier.height(10.dp))
                 EmbeddingSmokeCard()
+                Spacer(Modifier.height(10.dp))
+                RagIndexCard(vm)
                 Spacer(Modifier.height(10.dp))
                 CascadeHarnessCard(vm)
             }
@@ -401,6 +404,63 @@ private fun EmbeddingSmokeCard() {
             )
         }
     }
+}
+
+@Composable
+private fun RagIndexCard(vm: SettingsViewModel) {
+    val c = ArcanaTheme.colors
+    val state by vm.rag.collectAsStateWithLifecycle()
+    var query by remember { mutableStateOf("") }
+
+    SettingCard {
+        Column(Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("RAG index", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.text)
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        "${state.indexCount} vectors · semantic search over your collection",
+                        fontFamily = Mono, fontSize = 11.sp, color = c.textFaint, lineHeight = 15.sp,
+                    )
+                }
+                HarnessButton(if (state.building) "…" else "Build", enabled = !state.building) { vm.buildIndex() }
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = { Text("dragons, airbender…", fontFamily = Mono, fontSize = 12.sp) },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(8.dp))
+                HarnessButton("Ask", enabled = !state.building) { vm.queryRag(query) }
+            }
+            Spacer(Modifier.height(8.dp))
+            HarnessButton("Doc-shape A/B", enabled = !state.building) { vm.docShapeAB() }
+            if (state.log.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                state.log.forEach { Text(it, fontFamily = Mono, fontSize = 11.sp, color = c.textDim, lineHeight = 16.sp) }
+            }
+        }
+    }
+}
+
+/** The small mono outline button used across the debug harness cards. */
+@Composable
+private fun HarnessButton(label: String, enabled: Boolean = true, onClick: () -> Unit) {
+    val c = ArcanaTheme.colors
+    Text(
+        label,
+        fontFamily = Mono, fontSize = 12.sp, fontWeight = FontWeight.Medium,
+        color = if (enabled) c.iris else c.textDim,
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .border(1.dp, c.hairline, RoundedCornerShape(8.dp))
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    )
 }
 
 @Composable

@@ -5,6 +5,8 @@ import com.aashishgodambe.arcana.core.data.database.entity.CollectibleCategory
 import com.aashishgodambe.arcana.core.data.database.entity.CollectibleOrigin
 import com.aashishgodambe.arcana.core.data.database.entity.SnapshotTrigger
 import com.aashishgodambe.arcana.core.data.database.entity.ValueSource
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.time.Instant
 import java.time.LocalDate
 
@@ -30,4 +32,19 @@ class ArcanaConverters {
 
     @TypeConverter fun fromSnapshotTrigger(value: SnapshotTrigger): String = value.name
     @TypeConverter fun toSnapshotTrigger(value: String): SnapshotTrigger = SnapshotTrigger.valueOf(value)
+
+    // Embedding vectors, stored as a little-endian float BLOB (the RAG vector store).
+    @TypeConverter
+    fun fromFloatArray(value: FloatArray): ByteArray {
+        val buf = ByteBuffer.allocate(value.size * Float.SIZE_BYTES).order(ByteOrder.LITTLE_ENDIAN)
+        buf.asFloatBuffer().put(value)
+        return buf.array()
+    }
+
+    @TypeConverter
+    fun toFloatArray(value: ByteArray): FloatArray {
+        val floats = FloatArray(value.size / Float.SIZE_BYTES)
+        ByteBuffer.wrap(value).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer().get(floats)
+        return floats
+    }
 }

@@ -7,6 +7,7 @@ import com.aashishgodambe.arcana.core.data.database.dao.CollectibleDao
 import com.aashishgodambe.arcana.core.data.database.dao.FunkoMetadataDao
 import com.aashishgodambe.arcana.core.data.database.dao.SeriesDao
 import com.aashishgodambe.arcana.core.data.database.dao.ValueSnapshotDao
+import com.aashishgodambe.arcana.core.data.database.dao.VectorDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -33,4 +34,6 @@ object DataModule {
     @Provides fun provideSeriesDao(db: ArcanaDatabase): SeriesDao = db.seriesDao()
 
     @Provides fun provideValueSnapshotDao(db: ArcanaDatabase): ValueSnapshotDao = db.valueSnapshotDao()
+
+    @Provides fun provideVectorDao(db: ArcanaDatabase): VectorDao = db.vectorDao()
 }

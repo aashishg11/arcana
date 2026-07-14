@@ -12,6 +12,12 @@ import com.aashishgodambe.arcana.core.ai.capability.ModelReadiness
 import com.aashishgodambe.arcana.core.ai.cascade.CaptureCascade
 import com.aashishgodambe.arcana.core.ai.cascade.CascadeState
 import com.aashishgodambe.arcana.core.ai.model.AskEngine
+import com.aashishgodambe.arcana.core.ai.rag.CollectionDocument
+import com.aashishgodambe.arcana.core.ai.rag.CollectionEmbedder
+import com.aashishgodambe.arcana.core.ai.rag.CollectionIndexer
+import com.aashishgodambe.arcana.core.ai.rag.CollectionVectorStore
+import com.aashishgodambe.arcana.core.ai.rag.EmbeddingMath
+import com.aashishgodambe.arcana.core.data.repository.CollectibleRepository
 import com.aashishgodambe.arcana.core.data.settings.SettingsStore
 import com.aashishgodambe.arcana.core.data.settings.ThemeMode
 import com.aashishgodambe.arcana.core.data.worker.WeeklyPriceSyncScheduler
@@ -21,6 +27,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -32,6 +39,10 @@ class SettingsViewModel @Inject constructor(
     private val capability: DeviceCapabilityChecker,
     private val ownModel: OwnModelEngine,
     private val captureCascade: CaptureCascade,
+    private val indexer: CollectionIndexer,
+    private val vectorStore: CollectionVectorStore,
+    private val embedder: CollectionEmbedder,
+    private val repository: CollectibleRepository,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -134,7 +145,95 @@ class SettingsViewModel @Inject constructor(
             }
         }
     }
+
+    // --- Dev harness: RAG index + semantic query over the real collection (debug-only) ---
+
+    private val _rag = MutableStateFlow(RagHarnessState())
+    val rag: StateFlow<RagHarnessState> = _rag.asStateFlow()
+
+    init {
+        viewModelScope.launch { _rag.update { it.copy(indexCount = vectorStore.count()) } }
+    }
+
+    /** Rebuild the vector index over the whole collection, timing it. Incremental after the first run. */
+    fun buildIndex() {
+        if (_rag.value.building) return
+        viewModelScope.launch {
+            _rag.update { it.copy(building = true, log = listOf("Indexing…")) }
+            val started = System.currentTimeMillis()
+            val result = indexer.index { p -> _rag.update { it.copy(log = listOf("Indexing ${p.done}/${p.total}…")) } }
+            val ms = System.currentTimeMillis() - started
+            val line = if (!result.available) "Model not installed — side-load it"
+            else "embedded ${result.embedded} · skipped ${result.skipped} · failed ${result.failed} in ${ms}ms"
+            _rag.update { it.copy(building = false, indexCount = vectorStore.count(), log = listOf(line)) }
+        }
+    }
+
+    /** Embed [query] and show the top-k collection items by cosine — the retrieval money-shot. */
+    fun queryRag(query: String) {
+        if (query.isBlank() || _rag.value.building) return
+        viewModelScope.launch {
+            _rag.update { it.copy(building = true) }
+            val qv = embedder.embedQuery(query)
+            if (qv == null) {
+                _rag.update { it.copy(building = false, log = listOf("Model not installed — side-load it")) }
+                return@launch
+            }
+            val names = repository.allCollectibles().associateBy { it.localId }
+            val top = vectorStore.topK(qv, k = 5)
+            val lines = top.map { s ->
+                "${"%.2f".format(s.score)}  ${names[s.id]?.name ?: "#${s.id}"}"
+            }.ifEmpty { listOf("(index empty — build it first)") }
+            _rag.update { it.copy(building = false, log = listOf("\"$query\" →") + lines) }
+        }
+    }
+
+    /**
+     * Document-shape A/B: for a real item, does the **rich** descriptor (name + series) retrieve a
+     * franchise query better than the **bare name**? Reports both cosines — the plan's "document shape >
+     * model choice" claim, measured on the user's own data.
+     */
+    fun docShapeAB() {
+        viewModelScope.launch {
+            _rag.update { it.copy(building = true, log = listOf("Comparing shapes…")) }
+            val item = repository.allCollectibles().firstOrNull { it.series.any { s -> s.isNotBlank() } }
+            if (item == null) {
+                _rag.update { it.copy(building = false, log = listOf("No item with a series to compare")) }
+                return@launch
+            }
+            val query = item.series.first { it.isNotBlank() }
+            val qv = embedder.embedQuery(query)
+            val bare = embedder.embedDocument(item.name)
+            val rich = embedder.embedDocument(CollectionDocument.of(item))
+            if (qv == null || bare == null || rich == null) {
+                _rag.update { it.copy(building = false, log = listOf("Model not installed — side-load it")) }
+                return@launch
+            }
+            val dim = EmbeddingMath.SHIPPING_DIMENSION
+            val q = EmbeddingMath.truncate(qv, dim)
+            val cosBare = EmbeddingMath.cosine(q, EmbeddingMath.truncate(bare, dim))
+            val cosRich = EmbeddingMath.cosine(q, EmbeddingMath.truncate(rich, dim))
+            _rag.update {
+                it.copy(
+                    building = false,
+                    log = listOf(
+                        "${item.name}  ·  query \"$query\"",
+                        "bare name:  ${"%.3f".format(cosBare)}",
+                        "rich (+series):  ${"%.3f".format(cosRich)}",
+                        if (cosRich > cosBare) "→ rich wins" else "→ bare wins",
+                    ),
+                )
+            }
+        }
+    }
 }
+
+/** Debug dev-harness state for the RAG index + query. */
+data class RagHarnessState(
+    val indexCount: Int = 0,
+    val building: Boolean = false,
+    val log: List<String> = emptyList(),
+)
 
 /** Debug dev-harness state for the capture cascade. */
 data class CascadeHarnessState(

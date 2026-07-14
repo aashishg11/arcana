@@ -22,20 +22,46 @@ object CollectionDocument {
     fun documentPrompt(text: String): String = "title: none | text: ${text.trim()}"
 
     /**
-     * The descriptor embedded for a collectible. Exhaustive `when` over the sealed type so a new category
-     * breaks compilation here rather than silently embedding an empty string.
+     * The descriptor embedded for a collectible — the shape chosen by the Day-2 on-device benchmark
+     * ([CollectionRagE2eTest]). Exhaustive `when` over the sealed type so a new category breaks compilation
+     * here rather than silently embedding an empty string.
      */
-    fun of(collectible: Collectible): String = when (collectible) {
-        is FunkoPop -> funkoText(collectible)
-    }
+    fun of(collectible: Collectible): String = Shape.Natural.render(collectible)
 
-    private fun funkoText(pop: FunkoPop): String {
-        val series = pop.series.filter { it.isNotBlank() }.joinToString(", ")
-        return buildString {
-            append(pop.name)
-            if (series.isNotBlank()) append(". Series: ").append(series)
-            if (pop.isNftRedeemable) append(". NFT redeemable")
-            pop.exclusiveTo?.takeIf { it.isNotBlank() }?.let { append(". Exclusive: ").append(it) }
-        }
+    /**
+     * Candidate document shapes, compared on retrieval quality (the plan's "document shape > model
+     * choice"). The measured finding: labelled scaffolding ("Series: …") *dilutes* the pooled embedding
+     * when the name already implies the franchise, so a **natural** phrasing wins. Kept as an enum so the
+     * comparison is reproducible and the winner is a one-line change.
+     */
+    enum class Shape {
+        /** Just the name — the baseline. Strong when the character name already carries the franchise. */
+        BareName {
+            override fun render(c: Collectible): String = c.name
+        },
+
+        /** Name + labelled series/flags — reads naturally to a human, but the labels add token noise. */
+        Labelled {
+            override fun render(c: Collectible): String = buildString {
+                append(c.name)
+                seriesOf(c)?.let { append(". Series: ").append(it) }
+                if (c is FunkoPop && c.isNftRedeemable) append(". NFT redeemable")
+            }
+        },
+
+        /** Name woven into a natural sentence with its franchise — no label scaffolding. */
+        Natural {
+            override fun render(c: Collectible): String = buildString {
+                append(c.name)
+                seriesOf(c)?.let { append(" from ").append(it) }
+                if (c is FunkoPop && c.isNftRedeemable) append(", an NFT-redeemable Funko Pop")
+                else append(", a Funko Pop")
+            }
+        };
+
+        abstract fun render(c: Collectible): String
+
+        protected fun seriesOf(c: Collectible): String? =
+            c.series.filter { it.isNotBlank() }.joinToString(", ").takeIf { it.isNotBlank() }
     }
 }

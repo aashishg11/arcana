@@ -7,11 +7,13 @@ import com.aashishgodambe.arcana.core.data.database.dao.CollectibleDao
 import com.aashishgodambe.arcana.core.data.database.dao.FunkoMetadataDao
 import com.aashishgodambe.arcana.core.data.database.dao.SeriesDao
 import com.aashishgodambe.arcana.core.data.database.dao.ValueSnapshotDao
+import com.aashishgodambe.arcana.core.data.database.dao.VectorDao
 import com.aashishgodambe.arcana.core.data.database.entity.CollectibleEntity
 import com.aashishgodambe.arcana.core.data.database.entity.CollectibleSeriesCrossRef
 import com.aashishgodambe.arcana.core.data.database.entity.FunkoMetadataEntity
 import com.aashishgodambe.arcana.core.data.database.entity.SeriesEntity
 import com.aashishgodambe.arcana.core.data.database.entity.ValueSnapshotEntity
+import com.aashishgodambe.arcana.core.data.database.entity.VectorEntity
 
 @Database(
     entities = [
@@ -20,8 +22,9 @@ import com.aashishgodambe.arcana.core.data.database.entity.ValueSnapshotEntity
         SeriesEntity::class,
         CollectibleSeriesCrossRef::class,
         ValueSnapshotEntity::class,
+        VectorEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 @TypeConverters(ArcanaConverters::class)
@@ -30,4 +33,5 @@ abstract class ArcanaDatabase : RoomDatabase() {
     abstract fun funkoMetadataDao(): FunkoMetadataDao
     abstract fun seriesDao(): SeriesDao
     abstract fun valueSnapshotDao(): ValueSnapshotDao
+    abstract fun vectorDao(): VectorDao
 }

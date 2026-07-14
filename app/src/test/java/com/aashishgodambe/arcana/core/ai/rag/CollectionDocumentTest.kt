@@ -43,24 +43,30 @@ class CollectionDocumentTest {
     }
 
     @Test
-    fun `document folds in name, series and the NFT flag`() {
+    fun `default document uses the natural shape woven with the franchise`() {
         val text = CollectionDocument.of(pop())
         assertTrue(text.contains("Daenerys Targaryen with Egg"))
-        assertTrue(text.contains("Game of Thrones"))
-        assertTrue(text.contains("Pop! Digital"))
+        assertTrue(text.contains("from Game of Thrones, Pop! Digital"))
+        assertTrue(text.contains("NFT-redeemable Funko Pop"))
+        assertFalse("natural shape has no label scaffolding", text.contains("Series:"))
+    }
+
+    @Test
+    fun `bare-name shape is just the name`() {
+        assertEquals("Daenerys Targaryen with Egg", CollectionDocument.Shape.BareName.render(pop()))
+    }
+
+    @Test
+    fun `labelled shape keeps the Series label`() {
+        val text = CollectionDocument.Shape.Labelled.render(pop())
+        assertTrue(text.contains("Series: Game of Thrones, Pop! Digital"))
         assertTrue(text.contains("NFT redeemable"))
     }
 
     @Test
-    fun `document omits an empty series and a null exclusive`() {
-        val text = CollectionDocument.of(pop(series = listOf("", "  "), nft = false, exclusive = null))
-        assertFalse(text.contains("Series:"))
-        assertFalse(text.contains("Exclusive:"))
-        assertFalse(text.contains("NFT"))
-    }
-
-    @Test
-    fun `document surfaces an exclusive when present`() {
-        assertTrue(CollectionDocument.of(pop(exclusive = "SDCC")).contains("Exclusive: SDCC"))
+    fun `shapes omit an empty series`() {
+        val bare = pop(series = listOf("", "  "), nft = false)
+        assertFalse(CollectionDocument.Shape.Natural.render(bare).contains("from"))
+        assertFalse(CollectionDocument.Shape.Labelled.render(bare).contains("Series:"))
     }
 }
