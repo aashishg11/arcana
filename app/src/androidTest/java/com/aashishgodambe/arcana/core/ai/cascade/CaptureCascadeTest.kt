@@ -39,10 +39,10 @@ class CaptureCascadeTest {
         override suspend fun segment(bitmap: Bitmap) = SegmentationResult(subject)
     }
 
-    private class FakeDescriber(private val read: LlmBoxRead?, private val partials: List<String>) : MultimodalDescriber {
-        override suspend fun describe(bitmap: Bitmap, onPartial: (String) -> Unit): LlmBoxRead? {
+    private class FakeDescriber(private val description: String?, private val partials: List<String>) : MultimodalDescriber {
+        override suspend fun describe(bitmap: Bitmap, onPartial: (String) -> Unit): String? {
             partials.forEach(onPartial)
-            return read
+            return description
         }
     }
 
@@ -77,7 +77,7 @@ class CaptureCascadeTest {
 
         val cascade = CaptureCascade(
             segmenter = FakeSegmenter(subject = bmp), // masked subject for the UI outline state
-            describer = FakeDescriber(LlmBoxRead(character = "Aang", franchise = "Avatar"), listOf("a masked", "a masked figure")),
+            describer = FakeDescriber("a masked figure in a red suit", listOf("a masked", "a masked figure in a red suit")),
             textExtractor = FakeTextExtractor(TextExtraction("406 AVATAR", aangLines)),
             barcodeScanner = FakeBarcodeScanner(),
             catalogChain = ownedChain(),

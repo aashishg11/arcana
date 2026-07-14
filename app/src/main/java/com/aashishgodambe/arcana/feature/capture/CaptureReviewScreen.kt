@@ -306,10 +306,12 @@ private fun SettledIdentity(
         OwnedCallout(s.ownedQuantity)
     }
 
-    // Nano's on-device read, only where it corroborates the authoritative Pop number (never its labels).
-    s.description?.let(::nanoNumber)?.takeIf { it == entry.number }?.let { nano ->
+    // Nano's on-device look at the box: what the figure *looks like*, never what it *is* (its identity
+    // labels are unreliable). Trails Settled and may never arrive at all on a safety refusal — its absence
+    // is designed to be invisible.
+    s.description?.takeIf { it.isNotBlank() }?.let { description ->
         Spacer(Modifier.height(14.dp))
-        NanoCorroboration(nano)
+        NanoDescription(description)
     }
 
     s.market?.let { market ->
@@ -390,27 +392,29 @@ private fun ConfidenceBar(confidence: Float) {
     }
 }
 
-/** A quiet line showing the on-device model independently corroborated the Pop number — the honest, */
-/*  label-free way to surface Nano's multimodal read without asserting its unreliable character/franchise. */
+/**
+ * Gemini Nano's on-device **visual description** of the figure — appearance only ("a masked figure in a red
+ * suit holding a can of spinach"). Nano's identity *labels* are unreliable (it swaps character and
+ * franchise), and since the description no longer feeds identification, this surfaces what it genuinely
+ * sees rather than what it would guess — the honest form of the design's "the AI is describing the item"
+ * beat. Best-effort: on a refusal it simply never appears.
+ */
 @Composable
-private fun NanoCorroboration(number: String) {
+private fun NanoDescription(text: String) {
     val c = ArcanaTheme.colors
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.surface)
             .border(1.dp, c.hairline, RoundedCornerShape(14.dp)).padding(13.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Text("◊", color = c.iris, fontSize = 12.sp)
-        Text(
-            "Gemini Nano also read #$number on-device",
-            fontFamily = Mono, fontSize = 12.sp, color = c.textDim,
-        )
+        Column {
+            Text("SEEN ON-DEVICE", fontFamily = Mono, fontSize = 9.sp, color = c.textFaint, letterSpacing = 0.8.sp)
+            Spacer(Modifier.height(3.dp))
+            Text(text, fontSize = 13.sp, color = c.textDim, lineHeight = 18.sp)
+        }
     }
 }
-
-/** Nano's structured read is unreliable for labels but its number matches OCR — pull only that out. */
-private fun nanoNumber(raw: String): String? =
-    Regex("\"number\"\\s*:\\s*\"?(\\d{1,4})").find(raw)?.groupValues?.get(1)
 
 @Composable
 private fun FailureBlock(message: String, onRescan: () -> Unit) {

@@ -124,9 +124,12 @@ retriever and a router I can defend.*
   Hexagon NPU to see whether the accelerator engages where Tensor's didn't. A conscious hardware purchase.
 - **Eval harness** — extend the benchmark from *latency* to *accuracy*: cascade identification across the real
   photo set, retrieval quality across query types.
-- **Deferred robustness (optional):** re-prompt `NanoMultimodalDescriber` for a visual description ("a masked
-  figure in a red suit, gold crown") — since describe no longer feeds identification, this honestly restores
-  the wireframe's streaming "AI describing the item" beat. Not started this week (docs took Day 5).
+- ~~Deferred robustness: re-prompt `NanoMultimodalDescriber` for a visual description.~~ **DONE (post-Day-5).**
+  Nano is now asked for what the figure *looks like* rather than identity fields it gets wrong, restoring the
+  design's "AI describing the item" beat honestly. Verified on the Freddy #32 box: *"a brown-skinned cartoon
+  character with orange hair, wearing a yellow sailor hat"* — appearance only, never naming the character.
+  **Finding:** an ML Kit Prompt-API **safety refusal returns an empty/candidate-less response, not an
+  exception** — so it must be logged explicitly or "refused" looks exactly like "worked".
 - **Polish:** Room migrations at schema-freeze (baseline + `exportSchema` + `@AutoMigration`); multi-module
   split; Edit Details; capture history.
 

@@ -7,22 +7,25 @@ import com.google.mlkit.genai.prompt.Generation
 import com.google.mlkit.genai.prompt.ImagePart
 import com.google.mlkit.genai.prompt.TextPart
 import com.google.mlkit.genai.prompt.generateContentRequest
-import org.json.JSONObject
 import javax.inject.Inject
 
 /**
- * Gemini Nano impl of [MultimodalDescriber] via the ML Kit GenAI Prompt API (the surface chosen in
- * Gate A over the fixed captioner, which safety-refuses fantasy/horror boxes). A terse, product-framed
- * prompt asks for compact JSON, which parses into an [LlmBoxRead] fusion hint — kept fast by not asking
- * for prose (~6s vs ~18s for a paragraph, per Gate A).
+ * Gemini Nano impl of [MultimodalDescriber] via the ML Kit GenAI Prompt API (chosen in Gate A over the
+ * fixed captioner, which safety-refuses fantasy/horror boxes).
  *
- * Best-effort by contract: AICore needs the app foreground and can still refuse an output on policy, so
- * any failure returns null and the cascade proceeds on OCR + catalog. Nano's field *labels* are
- * unreliable (it swaps character/franchise), so downstream fusion treats these as fallbacks only.
+ * **The prompt asks for appearance, not identity.** Gate A found Nano's field *labels* unreliable (it swaps
+ * character and franchise — it read "Popeye" as the character on a Freddy Funko box), and since Week 9 the
+ * description no longer feeds identification. So rather than surface a label it gets wrong, we ask for the
+ * one thing it's reliable at — **what the figure looks like** — which is also the honest way to restore the
+ * design's streaming "the AI is describing the item" beat.
+ *
+ * The framing stays **product-oriented** ("this is a collectible box") because Gate A showed a bare
+ * "describe this image" is what trips the output safety classifier on fantasy/horror figures. Any failure
+ * or refusal returns null and the cascade proceeds on OCR + catalog; the UI renders that absence as normal.
  */
 class NanoMultimodalDescriber @Inject constructor() : MultimodalDescriber {
 
-    override suspend fun describe(bitmap: Bitmap, onPartial: (String) -> Unit): LlmBoxRead? {
+    override suspend fun describe(bitmap: Bitmap, onPartial: (String) -> Unit): String? {
         val model = Generation.getClient()
         return try {
             if (model.checkStatus() != FeatureStatus.AVAILABLE) {
@@ -35,10 +38,18 @@ class NanoMultimodalDescriber @Inject constructor() : MultimodalDescriber {
                 temperature = 0.2f
                 topK = 10
             }
-            val text = model.generateContent(request).candidates.firstOrNull()?.text?.trim().orEmpty()
-            if (text.isBlank()) return null
-            onPartial(text)
-            parse(text)
+            val response = model.generateContent(request)
+            val text = response.candidates.firstOrNull()?.text?.trim().orEmpty()
+            // An output-safety refusal comes back as an empty/candidate-less response rather than an
+            // exception, so name it explicitly — otherwise "refused" looks identical to "worked".
+            if (text.isBlank()) {
+                Log.i(TAG, "nano returned nothing (candidates=${response.candidates.size}) — likely refused")
+                return null
+            }
+            val description = clean(text)
+            if (description.isBlank()) return null
+            onPartial(description)
+            description
         } catch (e: Exception) {
             Log.i(TAG, "Nano describe unavailable/refused: ${e.message}")
             null
@@ -47,30 +58,19 @@ class NanoMultimodalDescriber @Inject constructor() : MultimodalDescriber {
         }
     }
 
-    /** Parse the terse JSON (tolerating a ```json fence) into an [LlmBoxRead]; keep the raw text as a hint. */
-    private fun parse(text: String): LlmBoxRead {
-        // Nano often wraps JSON in a markdown fence despite instructions — take the outermost {...}.
-        val start = text.indexOf('{')
-        val end = text.lastIndexOf('}')
-        val obj = if (start in 0 until end) {
-            runCatching { JSONObject(text.substring(start, end + 1)) }.getOrNull()
-        } else {
-            null
-        } ?: return LlmBoxRead(rawText = text)
-        fun s(key: String) = obj.optString(key).trim().ifBlank { null }
-        return LlmBoxRead(
-            character = s("character"),
-            franchise = s("franchise"),
-            number = s("number"),
-            series = s("series"),
-            rawText = text,
-        )
-    }
+    /** Keep it to one tidy sentence — strip any preamble/markdown Nano adds despite being told not to. */
+    private fun clean(text: String): String =
+        text.removePrefix("*").trim().removeSurrounding("\"")
+            .lineSequence().firstOrNull { it.isNotBlank() }.orEmpty()
+            .trim()
+            .take(MAX_CHARS)
 
     private companion object {
         const val TAG = "NanoDescriber"
+        const val MAX_CHARS = 140
         const val PROMPT =
-            "This is a Funko Pop collectible box. Read the box and output ONLY compact JSON with keys " +
-                "character, franchise, number (the Pop number), series. No prose, no markdown."
+            "This is a Funko Pop collectible box. In one short sentence, describe only the figure's visual " +
+                "appearance — its colours, outfit, and anything it is holding. Do NOT name the character or " +
+                "the franchise, and do not guess what it is. No preamble, no markdown."
     }
 }
