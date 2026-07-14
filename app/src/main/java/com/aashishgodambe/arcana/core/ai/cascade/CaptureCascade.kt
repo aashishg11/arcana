@@ -30,6 +30,8 @@ class CaptureCascade @Inject constructor(
     private val textExtractor: TextExtractor,
     private val barcodeScanner: BarcodeScanner,
     private val catalogChain: CatalogProviderChain,
+    /** The Pop numbers already in the collection — consulted only to break a burst-vote tie. */
+    private val ownedNumbers: suspend () -> Set<String> = { emptySet() },
 ) {
 
     /**
@@ -162,7 +164,15 @@ class CaptureCascade @Inject constructor(
                 async { frame to BoxLayoutParser.parse(textExtractor.extract(frame).lines) }
             }.awaitAll()
         }
-        val winner = candidates[OcrBurstVote.pick(candidates.map { it.second })]
+        // On a frequency tie (e.g. [62,62,32,32]) frequency alone can't decide, so consult the collection —
+        // and only then, to keep the happy path free of a DB read — preferring the number we actually own.
+        val layouts = candidates.map { it.second }
+        val idx = if (OcrBurstVote.topNumbers(layouts).size > 1) {
+            OcrBurstVote.pick(layouts, preferred = ownedNumbers())
+        } else {
+            OcrBurstVote.pick(layouts)
+        }
+        val winner = candidates[idx]
         Log.i(TAG, "burst vote ${candidates.map { it.second.popNumber }} → #${winner.second.popNumber}")
         return winner
     }

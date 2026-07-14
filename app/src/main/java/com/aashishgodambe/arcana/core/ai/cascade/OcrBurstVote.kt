@@ -18,14 +18,33 @@ object OcrBurstVote {
         layout.popNumber != null && (layout.franchise != null || layout.character != null)
 
     /**
-     * The index of the winning layout among a burst: the most-frequent Pop number wins, preferring a frame
-     * whose read is also corroborated; ties break to the first frame seen (the primary). Returns 0 when no
-     * frame produced a number, so the caller falls back to the primary frame.
+     * The Pop numbers tied for the most votes. A size > 1 means the burst *can't* decide on frequency alone
+     * (e.g. `[62,62,32,32]`), so the caller can break the tie with catalog knowledge before calling [pick].
      */
-    fun pick(layouts: List<BoxLayout>): Int {
-        if (layouts.isEmpty()) return 0
+    fun topNumbers(layouts: List<BoxLayout>): List<String> {
         val counts = layouts.mapNotNull { it.popNumber }.groupingBy { it }.eachCount()
-        val winningNumber = counts.maxByOrNull { it.value }?.key ?: return 0
+        val max = counts.values.maxOrNull() ?: return emptyList()
+        return counts.filter { it.value == max }.keys.toList()
+    }
+
+    /**
+     * The index of the winning layout among a burst. The most-frequent Pop number wins; a **frequency tie**
+     * (`[62,62,32,32]`) is broken toward a number that's [preferred] — one that exists in the local
+     * collection (Popeye #32, not #62), the Week-9 known-wrong-answer bug — then toward a corroborated read,
+     * then the first frame seen. Among frames sharing the winning number, a corroborated one is preferred.
+     * Returns 0 when no frame produced a number, so the caller falls back to the primary frame.
+     */
+    fun pick(layouts: List<BoxLayout>, preferred: Set<String> = emptySet()): Int {
+        if (layouts.isEmpty()) return 0
+        val top = topNumbers(layouts)
+        val winningNumber = when {
+            top.isEmpty() -> return 0
+            top.size == 1 -> top.first()
+            else -> top.firstOrNull { it in preferred }
+                ?: top.firstOrNull { n -> layouts.any { it.popNumber == n && isCorroborated(it) } }
+                ?: layouts.firstNotNullOfOrNull { l -> l.popNumber?.takeIf { it in top } }
+                ?: top.first()
+        }
         return layouts.indexOfFirst { it.popNumber == winningNumber && isCorroborated(it) }
             .takeIf { it >= 0 }
             ?: layouts.indexOfFirst { it.popNumber == winningNumber }

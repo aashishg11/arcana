@@ -67,6 +67,28 @@ class OcrBurstVoteTest {
     }
 
     @Test
+    fun `topNumbers exposes a frequency tie`() {
+        val layouts = listOf(layout("62"), layout("62"), layout("32"), layout("32"))
+        assertEquals(setOf("62", "32"), OcrBurstVote.topNumbers(layouts).toSet())
+        assertEquals(listOf("32"), OcrBurstVote.topNumbers(listOf(layout("32"), layout("32"), layout("62"))))
+    }
+
+    @Test
+    fun `a 2-2 tie is broken toward the number owned in the collection`() {
+        // The Week-9 bug: [62,62,32,32] → 62 by first-seen, but the collection has Popeye #32, not #62.
+        val layouts = listOf(layout("62"), layout("62"), layout("32"), layout("32"))
+        assertEquals("62", layouts[OcrBurstVote.pick(layouts)].popNumber) // no catalog help → old behavior
+        assertEquals("32", layouts[OcrBurstVote.pick(layouts, preferred = setOf("32"))].popNumber) // fixed
+    }
+
+    @Test
+    fun `a tie with no owned match falls back to a corroborated frame`() {
+        val layouts = listOf(layout("62"), layout("32", franchise = "Popeye"))
+        // Neither owned; the corroborated read (#32 Popeye) wins the tie over the bare #62.
+        assertEquals("32", layouts[OcrBurstVote.pick(layouts, preferred = emptySet())].popNumber)
+    }
+
+    @Test
     fun `all-null burst falls back to the primary frame`() {
         val layouts = listOf(layout(null), layout(null))
         assertEquals(0, OcrBurstVote.pick(layouts))

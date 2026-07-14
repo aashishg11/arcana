@@ -24,6 +24,7 @@ import com.aashishgodambe.arcana.core.ai.writing.ListingWriter
 import com.aashishgodambe.arcana.core.ai.writing.MlKitListingWriter
 import com.aashishgodambe.arcana.core.data.repository.CollectibleRepository
 import com.aashishgodambe.arcana.core.data.settings.SettingsStore
+import com.aashishgodambe.arcana.core.domain.model.FunkoPop
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -99,5 +100,12 @@ object AiModule {
                     CloudMultimodalCatalogProvider(),
                 ),
             ),
+            // Owned Pop numbers, for the burst-vote tie-break (fetched lazily, only on a tie).
+            ownedNumbers = {
+                repository.allCollectibles()
+                    .filterIsInstance<FunkoPop>()
+                    .mapNotNull { it.popNumber }
+                    .toSet()
+            },
         )
 }
