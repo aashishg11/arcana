@@ -15,25 +15,49 @@ package com.aashishgodambe.arcana.core.ai.cascade
 object PopNumberParser {
 
     private val HASH = Regex("#\\s?(\\d{1,4})")
-    private val NUMBER = Regex("\\b\\d{1,4}\\b")
-    // Words that mark a line as edition size / age warning / choking notice — never the Pop number.
+    // A 1-4 digit run that is NOT part of a longer number — so "715" is found even in "nT715" or "(132",
+    // while long UPC / lot codes ("8969852042", "FAC-053571-21112") yield no spurious 1-4 candidate.
+    private val NUMBER = Regex("(?<!\\d)\\d{1,4}(?!\\d)")
+    private val PCS = Regex("(?i)\\bp[cg]s\\b|pieces?\\b")
+    // A line marked as edition size / age warning / choking notice never holds the Pop number. `\bmes(es|i)\b`
+    // catches Spanish/Italian "months" (36 meses / 36 mesi) that the old "month|mois" alone let through.
     private val NON_POP_CONTEXT =
-        Regex("(?i)pcs|piece|month|mois|warning|chok|hazard|advertencia|attention|danger")
+        Regex("(?i)pcs|piece|month|mois|\\bmes(?:es|i)?\\b|warning|chok|hazard|advertencia|attention|danger")
 
     fun parse(lines: List<RecognizedLine>): PopNumberResult {
         // 1. Explicit '#NNN' is unambiguous — take it regardless of size.
         for (line in lines) {
             HASH.find(line.text)?.let { return PopNumberResult(it.groupValues[1], listOf(it.groupValues[1])) }
         }
-        // 2. Otherwise rank standalone numbers by line height, dropping years and edition/warning lines.
+        // 2. The edition size (the number nearest a "PCS" line) is never the Pop number — exclude it. This
+        //    catches counts printed on a SEPARATE line from "PCS" ("-2300" above "PCS"), which a same-line
+        //    text filter misses.
+        val edition = editionNumber(lines)
+        // 3. Rank the rest by line height — the Pop number is the visually largest number on the box. With
+        //    the year, the edition size, and the age-warning numbers now removed, height reliably picks the
+        //    Pop number over the remaining noise. (Position-ranking was tried and regressed: it promoted a
+        //    stray "0" in "SANDIEG0" and a taller edition when its "PCS" line wasn't OCR'd.)
         val ranked = lines
             .filterNot { NON_POP_CONTEXT.containsMatchIn(it.text) }
-            .flatMap { line -> NUMBER.findAll(line.text).map { it.value to line.box.height } }
-            .filterNot { (num, _) -> isYear(num) }
-            .sortedByDescending { (_, height) -> height }
-            .map { (num, _) -> num }
+            .flatMap { line -> NUMBER.findAll(line.text).map { Candidate(it.value, line) } }
+            .filterNot { isYear(it.num) || it.num == edition }
+            .sortedByDescending { it.line.box.height }
+            .map { it.num }
             .distinct()
         return PopNumberResult(ranked.firstOrNull(), ranked)
+    }
+
+    private data class Candidate(val num: String, val line: RecognizedLine)
+
+    /** The piece count vertically nearest a "PCS" line — the edition size, to be excluded as a Pop number. */
+    private fun editionNumber(lines: List<RecognizedLine>): String? {
+        val pcs = lines.firstOrNull { PCS.containsMatchIn(it.text) } ?: return null
+        val center = (pcs.box.top + pcs.box.bottom) / 2
+        return lines
+            .flatMap { l -> NUMBER.findAll(l.text).map { it.value to l } }
+            .filterNot { (n, _) -> isYear(n) }
+            .minByOrNull { (_, l) -> kotlin.math.abs((l.box.top + l.box.bottom) / 2 - center) }
+            ?.first
     }
 
     private fun isYear(num: String): Boolean = num.length == 4 && num.toIntOrNull()?.let { it in 1900..2099 } == true

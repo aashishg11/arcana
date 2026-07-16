@@ -52,4 +52,30 @@ class PopNumberParserTest {
     fun no_number_returns_null() {
         assertNull(PopNumberParser.parse(listOf(line("AANG", 50), line("METALLIC", 40))).best)
     }
+
+    // --- Week-11 regressions: real standard-box failures the cascade eval surfaced (edition size / age
+    // --- warning / OCR-noise glyph beating the small corner Pop number). top matters here, so give geometry.
+    private fun lineAt(text: String, top: Int, height: Int) = RecognizedLine(text, BoundingBox(0, top, 100, top + height))
+
+    @Test
+    fun edition_size_on_a_separate_line_from_pcs_is_not_the_pop_number() {
+        // freddy161_hand: OCR read "161" (with seal lettering) and a taller "2300" above "PCS".
+        val lines = listOf(
+            lineAt("tbs161", top = 80, height = 40),
+            lineAt("2300", top = 300, height = 48),
+            lineAt("PCS", top = 312, height = 20),
+        )
+        assertEquals("161", PopNumberParser.parse(lines).best)
+    }
+
+    @Test
+    fun spanish_italian_months_warning_is_not_the_pop_number() {
+        // wanda715_topdown2: "715" merged as "nT715"; "36" sat in a Spanish/Italian months warning.
+        val lines = listOf(
+            lineAt("nT715", top = 200, height = 30),
+            lineAt("no adecuado para 36 meses", top = 500, height = 34),
+        )
+        assertEquals("715", PopNumberParser.parse(lines).best)
+    }
+
 }

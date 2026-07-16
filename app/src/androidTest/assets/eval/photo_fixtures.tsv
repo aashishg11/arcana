@@ -4,8 +4,8 @@
 # failureMode: clean|glare|angle|backlight|topdown|barcode|hand (the dominant controlled axis for this shot).
 # See EVAL_METHODOLOGY.md for scoring definitions and the current-coverage caveat.
 #
-# CURRENT STATE: 7 photos / 2 items, BOTH UNOWNED (cloud path only). The on-device-resolve column is
-# unmeasured until an owned collection box is shot. Add owned + more-item rows here as boxes are photographed.
+# CURRENT STATE: 37 photos / 16 items -- 28 owned (on-device path) + 9 unowned (cloud path). Three
+# multi-angle sets (Freddy #161, Halloween Wanda #715, Captain America #817) span the failure modes.
 #
 photo	item	popNumber	franchise	character	series	owned	expectedLocus	failureMode	notes
 funko_box.png	Aang with Armor (Metallic)	406	Avatar	Aang	Pop! Digital	no	Cloud	clean	Stock box image; unowned; committed (not personal). Legendary, ed. 1727.
@@ -15,3 +15,34 @@ freddy32_angle3q.jpg	Freddy Funko as Popeye	32	Popeye	Freddy Funko	Pop! Digital	
 freddy32_backlight.jpg	Freddy Funko as Popeye	32	Popeye	Freddy Funko	Pop! Digital	no	Cloud	backlight	Personal photo (gitignored). The 32->82 glyph-misread case.
 freddy32_topdown.jpg	Freddy Funko as Popeye	32	Popeye	Freddy Funko	Pop! Digital	no	Cloud	topdown	Personal photo (gitignored). Steep top-down angle.
 freddy32_barcode.jpg	Freddy Funko as Popeye	32	Popeye	Freddy Funko	Pop! Digital	no	Cloud	barcode	Personal photo (gitignored). Barcode-visible; exercises the barcode fallback.
+# --- Week-11 shoot: 14 items / 30 photos (12 owned, 2 unowned). 3 multi-angle sets (161/715/817). ---
+sleestak132.jpg	Freddy Funko as Sleestak	132	Land of the Lost	Freddy Funko as Sleestak	Pop! Digital	yes	OnDevice	clean	Personal photo (gitignored).
+freddy128.jpg	Freddy Funko	128	Freddy Funko	Freddy Funko	Pop! Digital	yes	OnDevice	clean	Personal photo (gitignored).
+mysterio473.jpg	Mysterio	473	Marvel	Mysterio	Pop! Vinyl	yes	OnDevice	clean	Personal photo (gitignored).
+pietro827.jpg	Pietro Maximoff	827	Marvel	Pietro Maximoff	Pop! Vinyl	yes	OnDevice	clean	Personal photo (gitignored).
+jiraiya1025.jpg	Jiraiya	1025	Naruto	Jiraiya	Pop! Animation	yes	OnDevice	clean	Personal photo (gitignored).
+thundarr829.jpg	Thundarr the Barbarian	829	Thundarr	Thundarr	Pop! Animation	yes	OnDevice	clean	Personal photo (gitignored).
+toucan125.jpg	Toucan	125	Froot Loops	Toucan	Pop! Ad Icons	yes	OnDevice	clean	Personal photo (gitignored).
+capncrunch36.jpg	Cap'n Crunch (w/ Sword)	36	Cap'n Crunch	Cap'n Crunch	Pop! Ad Icons	yes	OnDevice	clean	Personal photo (gitignored).
+babyfreddy164.jpg	Baby Freddy	164	Freddy Funko	Baby Freddy	Pop! Digital	no	Cloud	clean	Personal photo (gitignored). Not in collection -> cloud path.
+freddy161_clean.jpg	Freddy Funko	161	Freddy Funko	Freddy Funko	Pop! Digital	yes	OnDevice	clean	Personal photo (gitignored).
+freddy161_glare.jpg	Freddy Funko	161	Freddy Funko	Freddy Funko	Pop! Digital	yes	OnDevice	glare	Personal photo (gitignored).
+freddy161_hand.jpg	Freddy Funko	161	Freddy Funko	Freddy Funko	Pop! Digital	yes	OnDevice	hand	Personal photo (gitignored).
+freddy161_angle.jpg	Freddy Funko	161	Freddy Funko	Freddy Funko	Pop! Digital	yes	OnDevice	angle	Personal photo (gitignored).
+freddy161_barcode.jpg	Freddy Funko	161	Freddy Funko	Freddy Funko	Pop! Digital	yes	OnDevice	barcode	Personal photo (gitignored).
+freddy161_angle2.jpg	Freddy Funko	161	Freddy Funko	Freddy Funko	Pop! Digital	yes	OnDevice	angle	Personal photo (gitignored).
+wanda715_clean.jpg	Halloween Wanda	715	Marvel	Halloween Wanda	Pop! Vinyl	yes	OnDevice	clean	Personal photo (gitignored).
+wanda715_topdown.jpg	Halloween Wanda	715	Marvel	Halloween Wanda	Pop! Vinyl	yes	OnDevice	topdown	Personal photo (gitignored).
+wanda715_angle.jpg	Halloween Wanda	715	Marvel	Halloween Wanda	Pop! Vinyl	yes	OnDevice	angle	Personal photo (gitignored).
+wanda715_glare.jpg	Halloween Wanda	715	Marvel	Halloween Wanda	Pop! Vinyl	yes	OnDevice	glare	Personal photo (gitignored).
+wanda715_topdown2.jpg	Halloween Wanda	715	Marvel	Halloween Wanda	Pop! Vinyl	yes	OnDevice	topdown	Personal photo (gitignored).
+wanda715_backlight.jpg	Halloween Wanda	715	Marvel	Halloween Wanda	Pop! Vinyl	yes	OnDevice	backlight	Personal photo (gitignored).
+cap817_clean.jpg	Captain America	817	Marvel	Captain America	Pop! Vinyl	yes	OnDevice	clean	Personal photo (gitignored).
+cap817_barcode.jpg	Captain America	817	Marvel	Captain America	Pop! Vinyl	yes	OnDevice	barcode	Personal photo (gitignored).
+cap817_barcode2.jpg	Captain America	817	Marvel	Captain America	Pop! Vinyl	yes	OnDevice	barcode	Personal photo (gitignored).
+cap817_hand.jpg	Captain America	817	Marvel	Captain America	Pop! Vinyl	yes	OnDevice	hand	Personal photo (gitignored).
+cap817_topdown.jpg	Captain America	817	Marvel	Captain America	Pop! Vinyl	yes	OnDevice	topdown	Personal photo (gitignored).
+cap817_angle.jpg	Captain America	817	Marvel	Captain America	Pop! Vinyl	yes	OnDevice	angle	Personal photo (gitignored).
+cap817_clean2.jpg	Captain America	817	Marvel	Captain America	Pop! Vinyl	yes	OnDevice	clean	Personal photo (gitignored).
+tchalla871.jpg	T'Challa Star-Lord	871	Marvel	T'Challa Star-Lord	Pop! Vinyl	yes	OnDevice	clean	Personal photo (gitignored).
+snoopy1553.jpg	Snoopy	1553	Peanuts	Snoopy	Pop! Television	no	Cloud	clean	Personal photo (gitignored). Not in collection -> cloud path.
