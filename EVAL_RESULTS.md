@@ -178,6 +178,12 @@ to cloud.
 - **Background clutter**: `sleestak132` → `69` (a number on a box *behind* it), `wanda715_glare` → `2` (a noise
   glyph). No clean signal separates these from the real number.
 
+**Ruled out — low light.** The failures do **not** correlate with darkness. Measuring mean luminance (0–255)
+of all 30 photos, the failing shots are actually *brighter* on average than the passing ones (**126 vs 109**):
+the darkest photos (the Freddy #161 group, ~85–92) all passed, while the brightest (`cap817_clean2` 151, the
+backlit Wanda 143) failed. The limits are **local contrast** (grey-on-grey numbers), **geometry** (back-of-box,
+backlit), and **clutter** — not exposure. Re-shooting brighter wouldn't move the numbers.
+
 ### Method note (honest debugging)
 
 The first run showed several clean shots reading nothing, clustered in the later photos. I chased two wrong

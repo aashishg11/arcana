@@ -4,7 +4,7 @@
 
 Arcana catalogs a collection of *anything* — Funko Pops, FigPins, trading cards, sneakers — and uses **on-device Gemini Nano** to do what cloud apps can't or won't: "chat with your collection," value tracking over time, weekly AI summaries, and (soon) instant in-store identification. Every inference attempts on-device first; the cloud is a fallback, never the default. Your collection's data stays on your device.
 
-> **Status: 🚧 In active development (Week 10 of a 12-week build).** Built in the open as a portfolio piece demonstrating production-grade on-device AI on Android. **All eight Google `ai-samples` on-device capabilities are now shipped.** See [What works today](#what-works-today) for exactly what runs, and the [benchmark](#benchmark-three-engines-measured) for measured latency across three engines.
+> **Status: 🚧 In active development (Week 11 of a 12-week build).** Built in the open as a portfolio piece demonstrating production-grade on-device AI on Android. **All eight Google `ai-samples` on-device capabilities are shipped**, and both halves of the measurement story are now in place — **latency *and* accuracy**. See [What works today](#what-works-today) for exactly what runs, the [benchmark](#benchmark-three-engines-measured) for measured latency across three engines, and [Accuracy](#accuracy-measured-not-asserted) for how often it's *right*.
 
 <p align="center">
   <img src="docs/media/capture-ondevice.gif" width="300" alt="Capture: point at a Funko box, the cascade runs visibly, and it identifies an owned pop entirely on-device" />
@@ -108,6 +108,22 @@ Measured through the in-app benchmark on the Pixel 10 Pro XL — the same `Gemin
 |---|---|---|
 | ![Settings engine picker](docs/media/engine-picker.png) | ![p50/p95 results across Nano, Your Gemma, Cloud](docs/media/benchmark-3engine.png) | ![Ask Arcana answering from Your Gemma with the gold badge](docs/media/ask-yourgemma.png) |
 
+## Accuracy: measured, not asserted
+
+The benchmark above answers *how fast*. The other half of an honest measurement story is *how often it's right* — a fast wrong answer is worthless. So the app ships an **accuracy eval harness** beside the latency one: labeled fixtures, a runner, a scorer, and a committed results table ([EVAL_RESULTS.md](EVAL_RESULTS.md); scoring definitions in [EVAL_METHODOLOGY.md](EVAL_METHODOLOGY.md)). It turns failure *anecdotes* into failure *rates*.
+
+| Suite | What it scores | Result |
+|---|---|--:|
+| Router path | question → correct retrieval strategy | **34/34** real queries (35/37 incl. adversarial baits) |
+| Structured retrieval | counts/totals vs. *independently*-derived ground truth | **18/18** exact — "how many Marvel?" → 100, to the dollar |
+| Semantic retrieval | right item at rank 1 / in top-5 | **46% / 77%** over 13 fuzzy queries |
+| Cascade — OCR | reads the box's Pop number | **23/37 (62%)** over 37 real box photos |
+| Cascade — identify | resolves a full owned identity on-device | **9/28 (32%)**; unowned → cloud **4/4** |
+
+**The value is in the honesty.** The numbers are unflattering exactly where the hardware is: on-device semantic search has good recall but weak top-1 precision (it can't resolve "web slinger" → Spider-Man), and the cascade reads a Pop number far more often than it resolves a full identity — because Funko's low-contrast grey corner numbers defeat ML Kit OCR outright (**0/7** on one box), and resolution needs the franchise/character corroboration the number alone can't give. Both are *why the pipelines are hybrid* — semantic **+** SQL, on-device **+** cloud.
+
+**Building the harness caught three real, user-facing bugs** that the unit tests and manual use had missed — a follow-up question that silently misrouted, a "how many items?" that returned 0, and a box parser that let an edition size beat the Pop number — each fixed with a measured before/after delta. And every accuracy number was **pre-registered as a prediction before the run**; the predictions were mostly wrong, which is the point of pre-registering. The router and structured suites reproduce from a clean checkout; the semantic and cascade suites need the gated model / private photos, stated plainly.
+
 ## Architecture
 
 All model access sits behind one honest abstraction, so features never touch Firebase (or ML Kit, or ExecuTorch) types directly — swapping the backend is a DI binding change, not a call-site rewrite:
@@ -134,8 +150,8 @@ The identification centerpiece — the **capture cascade** — ships as a **conf
 - **Android:** Kotlin, Jetpack Compose, Material 3, Hilt, Room, Coroutines/Flow, WorkManager, Coil, **CameraX**
 - **On-device AI (now):** Firebase AI Logic hybrid inference (`firebase-ai` + `firebase-ai-ondevice`), Gemini Nano via AICore (text + **multimodal** via the ML Kit GenAI **Prompt API**); ML Kit **Summarization**, **Rewriting** (the listing writer), **subject segmentation**, **text recognition**, **barcode scanning**; **EmbeddingGemma-300M** on the **LiteRT interpreter** for on-device RAG (a hand-written Gemma SentencePiece tokenizer, brute-force cosine in Room); a self-quantized **Gemma 3 1B (INT4)** via **LiteRT / MediaPipe LLM Inference** (`tasks-genai`), CPU, as a same-interface engine
 - **Market data:** real **eBay Browse** API (OAuth app token) behind the `PriceProvider` seam; credentials stay in a gitignored `ebay.properties`. eBay data is never fed to any on-device model (per eBay's 2025 API terms on AI use)
-- **On-device AI (roadmap):** cross-vendor NPU benchmark (Snapdragon / Hexagon); identification/​retrieval eval harness
-- **Testing:** JUnit, Turbine, coroutines-test, device-free fakes for every seam; a device benchmark harness for latency
+- **On-device AI (roadmap):** cross-vendor NPU benchmark (Snapdragon / Hexagon) — parked pending a device
+- **Testing:** JUnit, Turbine, coroutines-test, device-free fakes for every seam; a device **latency** benchmark and an **accuracy** eval harness (labeled fixtures + scorer + committed results) for retrieval and cascade identification
 
 ## Requirements & setup
 
@@ -161,7 +177,8 @@ The identification centerpiece — the **capture cascade** — ships as a **conf
 | 8 | **Capture cascade engine** — segmentation → Nano multimodal → OCR → catalog → cloud fallback, as a per-stage `Flow<CascadeState>` (headless + dev harness) | ✅ |
 | 9 | **Capture UI** — camera → animated Review (the cascade running visibly) → identify → **save to collection**; real **eBay Browse** price integration | ✅ |
 | 10 | On-device **hybrid RAG** for Ask (EmbeddingGemma via LiteRT + a rules router: SQL for counts, vectors for meaning); **listing writer** (`genai-writing-assistance`) — **8/8 `ai-samples` capabilities** | ✅ |
-| 11 | Cross-vendor NPU benchmark (Snapdragon/Hexagon); identification/retrieval eval harness | ◻︎ |
+| 11 | **Accuracy eval harness** — labeled fixtures + runner + scorer + committed results for retrieval *and* cascade identification; caught 3 real bugs, all fixed with measured deltas | ✅ |
+| 12 | Cross-vendor NPU benchmark (Snapdragon/Hexagon — parked, no device); write-up & apply | ◻︎ |
 
 ## About
 
