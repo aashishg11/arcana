@@ -23,7 +23,14 @@ seed-data/*.raw.csv
 
 # Real capture fixtures from the user's own photos (show hand/home) — kept local, off the public repo.
 # The committed funko_box.png (stock) + the real-OCR data embedded in BoxLayoutParserTest cover the cascade.
+# Week-11 eval: personal box photos (phone-shot .jpg/.jpeg/.heic) are gitignored; the committed
+# photo_fixtures.tsv manifest holds the LABELS (commit the coverage, not the private images). funko_box.png
+# (stock .png) stays committed as the one exception. Drop new box photos in androidTest/assets/ by the name
+# referenced in the manifest — they will be ignored automatically.
 /app/src/androidTest/assets/freddy32_*.jpg
+/app/src/androidTest/assets/*.jpg
+/app/src/androidTest/assets/*.jpeg
+/app/src/androidTest/assets/*.heic
 
 # Claude local settings (machine-specific)
 .claude/settings.local.json

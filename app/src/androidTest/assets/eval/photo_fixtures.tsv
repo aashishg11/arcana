@@ -1,0 +1,17 @@
+# Arcana cascade eval — photo fixture manifest (committed labels; the photos themselves are gitignored).
+# Format: TSV. Columns below. Set-valued cells use '|'. Lines starting with '#' and blank lines are ignored.
+# owned=yes/no (is this exact item in the 504-item collection); expectedLocus=OnDevice/Cloud.
+# failureMode: clean|glare|angle|backlight|topdown|barcode|hand (the dominant controlled axis for this shot).
+# See EVAL_METHODOLOGY.md for scoring definitions and the current-coverage caveat.
+#
+# CURRENT STATE: 7 photos / 2 items, BOTH UNOWNED (cloud path only). The on-device-resolve column is
+# unmeasured until an owned collection box is shot. Add owned + more-item rows here as boxes are photographed.
+#
+photo	item	popNumber	franchise	character	series	owned	expectedLocus	failureMode	notes
+funko_box.png	Aang with Armor (Metallic)	406	Avatar	Aang	Pop! Digital	no	Cloud	clean	Stock box image; unowned; committed (not personal). Legendary, ed. 1727.
+freddy32_hand.jpg	Freddy Funko as Popeye	32	Popeye	Freddy Funko	Pop! Digital	no	Cloud	hand	Personal photo (gitignored). NFT, ed. 3198. Nearest owned item is Popeye With Swee'Pea #30.
+freddy32_glare.jpg	Freddy Funko as Popeye	32	Popeye	Freddy Funko	Pop! Digital	no	Cloud	glare	Personal photo (gitignored).
+freddy32_angle3q.jpg	Freddy Funko as Popeye	32	Popeye	Freddy Funko	Pop! Digital	no	Cloud	angle	Personal photo (gitignored). Three-quarter angle.
+freddy32_backlight.jpg	Freddy Funko as Popeye	32	Popeye	Freddy Funko	Pop! Digital	no	Cloud	backlight	Personal photo (gitignored). The 32->82 glyph-misread case.
+freddy32_topdown.jpg	Freddy Funko as Popeye	32	Popeye	Freddy Funko	Pop! Digital	no	Cloud	topdown	Personal photo (gitignored). Steep top-down angle.
+freddy32_barcode.jpg	Freddy Funko as Popeye	32	Popeye	Freddy Funko	Pop! Digital	no	Cloud	barcode	Personal photo (gitignored). Barcode-visible; exercises the barcode fallback.

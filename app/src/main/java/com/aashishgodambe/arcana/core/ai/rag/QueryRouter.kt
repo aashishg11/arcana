@@ -49,7 +49,12 @@ object QueryRouter {
     private fun isFollowUp(lower: String): Boolean {
         val words = lower.split(Regex("\\s+")).filter { it.isNotBlank() }
         if (words.size > 6) return false
-        if (FOLLOWUP_PHRASE.matches(lower)) return true
+        // Match the phrase both as-typed and with trailing sentence punctuation removed: a real user types
+        // "any others?" — the trailing '?' is the sentence, not part of the phrase, and the full-match
+        // FOLLOWUP_PHRASE (whose alternatives don't spell out punctuation) would otherwise let a plainly
+        // conversational follow-up fall through to semantic. Keep the raw check too so alternatives that DO
+        // encode a literal '?' (e.g. "and?") still match.
+        if (FOLLOWUP_PHRASE.matches(lower) || FOLLOWUP_PHRASE.matches(lower.trimEnd('?', '.', '!', ' '))) return true
         return BACK_REFERENCE.containsMatchIn(lower)
     }
 
@@ -75,8 +80,12 @@ object QueryRouter {
     private val YEAR = Regex("\\b(20\\d\\d)\\b")
     private val TEMPORAL = Regex("\\b(added|acquired|got|bought|import(ed)?|from|since|during|in|recently|new|year)\\b")
     private val COUNT_TRIGGER = Regex("^(how many|number of|count of|count my|count the|how much (are|is|do))")
+    // Order matters: "are there"/"is there" precede the bare "are"/"is" so the phrase is consumed whole.
+    // "items?/things?" collapse a generic size question ("how many items in my collection") to the empty
+    // subject that StructuredRetriever reads as the whole collection — matching SEARCH_STOPWORDS, which
+    // already drops "item(s)". Without them the residual subject has no salient terms and counts to 0.
     private val COUNT_NOISE =
-        Regex("\\b(do i own|do i have|are there|is there|in my collection|worth|left|own|have|my|the|pops?|funkos?|figures?)\\b")
+        Regex("\\b(do i own|do i have|are there|is there|are|is|in my collection|worth|left|own|have|items?|things?|my|the|pops?|funkos?|figures?)\\b")
     private val FOLLOWUP_PHRASE = Regex("(tell me more|^more$|^why\\??$|how so|go on|and\\?|what else|any others?)")
     private val BACK_REFERENCE = Regex("\\b(them|those|these|they)\\b")
 }

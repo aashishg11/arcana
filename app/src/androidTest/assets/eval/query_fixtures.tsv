@@ -1,0 +1,59 @@
+# Arcana retrieval eval — labeled query set (fully committed; no private data).
+# Format: TSV. Columns below. Set-valued groundTruth cells use '|' (any-of for broad franchises).
+# Lines starting with '#' and blank lines are ignored. Read by BOTH the JVM router-scoring test and the
+# instrumented structured/semantic suite (one source of truth). See EVAL_METHODOLOGY.md.
+#
+# expectedRoute: Count | NftRedeemable | MostValuable | AddedInYear | FollowUp | Semantic  (the DEFENSIBLE
+#   correct intent; a router disagreement is a measured misroute, not a fixture error).
+# answerKind: structured | semantic | followup | router   (which scorer applies; 'router' = router-path only).
+# groundTruth: structured -> expected count (derived INDEPENDENTLY from the committed CSV by
+#   tools/eval/derive_ground_truth.py, not by the retriever); semantic -> item name(s); followup/router -> '-'.
+#   Counts are unique entries (HobbyDB convention); '*' marks a value that drifts with price snapshots.
+#
+query	expectedRoute	answerKind	groundTruth	notes
+# --- Count: whole collection ---
+how many pops do I own	Count	structured	504	Whole-collection count; verified CSV row count (662 incl. duplicate copies).
+how many items are in my collection	Count	structured	504	Whole-collection synonym.
+# --- Count: subject-filtered (derived independently; contract = 4-field name/brand/listName/series LIKE) ---
+how many Marvel do I own	Count	structured	100	Contract=100 (124 copies); series-tag alone=98 -> 2 caught by name/listName. Value ~$2,435*.
+how many Star Wars pops	Count	structured	39	Contract=39 (58 copies); series-tag=38.
+how many Game of Thrones do I have	Count	structured	5	Contract and series-tag agree (5).
+how many horror pops	Count	structured	5	Series-tagged horror=5. THEMATIC BOUNDARY: structured sees only tagged; 'spooky horror' semantic surfaces more.
+how much are my Marvel worth	Count	structured	100	Same 100 Marvel; value ~$2,435* (estimatedValue-based; live may differ if eBay snapshots exist).
+number of Avatar figures	Count	structured	6	Contract and series-tag agree (6).
+# --- NftRedeemable (Exclusive To == 'NFT Redeemable', exact; NFT is checked BEFORE Count in the router) ---
+which are NFT redeemable	NftRedeemable	structured	141	Matches Week-10 live exactly; validates import->SQL fidelity. Value ~$15,083*.
+show my redemption pops	NftRedeemable	structured	141	Matches 'redemption'.
+how many NFT redeemable do I own	NftRedeemable	structured	141	Ordering case: 'nft' matches before the count trigger -> NftRedeemable route (still yields the count).
+# --- MostValuable (ranking; no count fact). TIE at the top -> tie-break is arbitrary; either is acceptable ---
+what's my most valuable item	MostValuable	structured	Fire Nation Aang|Daenerys Targaryen With Egg	TIE @ $590 each (CSV says 590, not 690). Top-3 adds Daemon Targaryen $450.
+priciest pop	MostValuable	structured	Fire Nation Aang|Daenerys Targaryen With Egg	Same tie.
+highest value funko	MostValuable	structured	Fire Nation Aang|Daenerys Targaryen With Egg	Same tie.
+what's worth the most	MostValuable	structured	Fire Nation Aang|Daenerys Targaryen With Egg	Same tie.
+# --- AddedInYear (Date Added To Collectible) ---
+what did I add in 2023	AddedInYear	structured	170	The NFT-boom cluster (170).
+anything I got in 2024	AddedInYear	structured	69	'got' temporal trigger.
+what did I acquire during 2022	AddedInYear	structured	0	EDGE CASE: zero items added in 2022 -> the app must return an empty/zero result cleanly. (Clusters are 2021:14, 2023:170, 2024:69, 2026:251.)
+# --- Semantic: confirmed single-item targets ---
+pops with dragons	Semantic	semantic	Vhagar	The keyword-free case: Vhagar is a dragon whose name contains no form of 'dragon'.
+the mother of dragons	Semantic	semantic	Daenerys
+spooky horror characters	Semantic	semantic	Pennywise|Annabelle
+killer clown	Semantic	semantic	Pennywise
+haunted doll	Semantic	semantic	Annabelle
+web slinger	Semantic	semantic	Spider-Man	Spider-Man present (3).
+friendly neighborhood hero	Semantic	semantic	Spider-Man
+norse god of thunder	Semantic	semantic	Thor	Thor present (2).
+the dark knight	Semantic	semantic	Batman	Batman present (10).
+sentient tree creature	Semantic	semantic	Groot	Groot present (1).
+avatar the last airbender	Semantic	semantic	Aang	Aang present (2).
+# --- Semantic: broad franchise (any member counts as a hit) ---
+marvel superheroes	Semantic	semantic	Marvel	Broad; any Marvel member (matched via series tag) counts as a hit.
+star wars characters	Semantic	semantic	Star Wars	Broad; any Star Wars item (38 present).
+# --- FollowUp (back-reference; reuse the thread's grounding) ---
+tell me more	FollowUp	followup	-	FOLLOWUP_PHRASE.
+what are they worth	FollowUp	followup	-	Back-reference 'they', <=6 words.
+any others?	FollowUp	followup	-	FOLLOWUP_PHRASE (fixed Week-11: trailing '?' no longer defeats the match).
+# --- Adversarial / misroute-bait (router-path robustness; no retrieval hit expected) ---
+Blade Runner 2049	Semantic	router	-	Year in a NAME must NOT trigger AddedInYear (no temporal word). Correct: Semantic. Router PASSES this.
+most valuable lesson I learned	Semantic	router	-	Keyword bait: 'most valuable' misroutes to MostValuable. Correct intent: Semantic. Known router limit.
+how many days until christmas	Semantic	router	-	Out-of-domain 'how many' bait; misroutes to Count. Documents the keyword router's limit.
