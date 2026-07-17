@@ -10,6 +10,7 @@ import com.aashishgodambe.arcana.core.ai.rag.CollectionRetriever
 import com.aashishgodambe.arcana.core.ai.rag.RetrievalStrategy
 import com.aashishgodambe.arcana.core.domain.model.Collectible
 import com.aashishgodambe.arcana.core.domain.model.FunkoPop
+import com.aashishgodambe.arcana.core.domain.model.currentValueCents
 import com.aashishgodambe.arcana.ui.formatUsd
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -121,7 +122,7 @@ class AskViewModel @Inject constructor(
     }
 
     private fun groundingOf(c: Collectible): GroundingItem =
-        GroundingItem(localId = c.localId, label = "${c.name} · ${formatUsd(c.estimatedValueCents)}")
+        GroundingItem(localId = c.localId, label = "${c.name} · ${formatUsd(c.currentValueCents)}")
 
     private fun buildPrompt(
         question: String,
@@ -132,7 +133,7 @@ class AskViewModel @Inject constructor(
         val lines = items.mapIndexed { i, c ->
             val series = c.series.joinToString(", ").takeIf { it.isNotBlank() }?.let { " — series: $it" } ?: ""
             val nft = if (c is FunkoPop && c.isNftRedeemable) " (NFT redeemable)" else ""
-            "${i + 1}. ${c.name} — ${formatUsd(c.estimatedValueCents)}$series$nft"
+            "${i + 1}. ${c.name} — ${formatUsd(c.currentValueCents)}$series$nft"
         }.joinToString("\n").ifEmpty { "(no items retrieved)" }
 
         val conversation = history.takeLast(HISTORY_TURNS)

@@ -72,6 +72,7 @@ import com.aashishgodambe.arcana.core.ai.model.InferenceLocation
 import com.aashishgodambe.arcana.ui.component.GhostButton
 import com.aashishgodambe.arcana.ui.component.InferenceBadge
 import com.aashishgodambe.arcana.ui.component.MarketSection
+import com.aashishgodambe.arcana.ui.component.PillButton
 import com.aashishgodambe.arcana.ui.component.StreamingText
 import com.aashishgodambe.arcana.ui.component.PlaceholderCard
 import com.aashishgodambe.arcana.ui.component.RangeSelector
@@ -91,6 +92,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.Instant
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
@@ -287,7 +289,7 @@ private fun FunkoDetail(
             Box(Modifier.fillMaxWidth().aspectRatio(1.2f).clip(RoundedCornerShape(20.dp)).background(c.surface), contentAlignment = Alignment.Center) {
                 AsyncImage(model = pop.imageUrl, contentDescription = pop.name, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().padding(8.dp))
             }
-            Text(pop.name, style = MaterialTheme.typography.headlineSmall, color = c.text)
+            Text(pop.name, style = MaterialTheme.typography.headlineMedium, color = c.text)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 pop.series.forEach { ArcanaChip(it, ChipStyle.Plain) }
                 pop.popNumber?.let { ArcanaChip("#$it", ChipStyle.Plain) }
@@ -301,6 +303,14 @@ private fun FunkoDetail(
                 Text("In your collection · added ${pop.dateAdded.format(MONTH_YEAR)}", color = c.text, fontSize = 13.sp)
             }
             Column {
+                // The header value is the tracked value (last snapshotted market price), not a static
+                // appraisal — label it, and surface when it was last synced so it doesn't read as fixed.
+                val syncedAt = history.maxByOrNull { it.at }?.at
+                Text(
+                    if (syncedAt != null) "TRACKED VALUE · SYNCED ${syncedLabel(syncedAt).uppercase()}" else "TRACKED VALUE",
+                    fontFamily = Mono, fontSize = 10.sp, color = c.textFaint, letterSpacing = 0.8.sp,
+                )
+                Spacer(Modifier.height(3.dp))
                 Text(formatUsd(pop.currentValueCents), style = MaterialTheme.typography.displayLarge.copy(fontSize = 34.sp), color = c.text)
                 pop.exclusiveTo?.let { Text("Exclusive · $it", fontFamily = Mono, fontSize = 11.sp, color = c.textDim) }
             }
@@ -312,13 +322,21 @@ private fun FunkoDetail(
                 else ->
                     PlaceholderCard("Median active listing", "Market data is unavailable right now.", "eBay Browse")
             }
-            GhostButton(
+            // Emphasis ladder (M3 filled → outlined → text): Snapshot is the recurring tracker loop, so it
+            // owns the one filled primary; "Buy on eBay" stays the outlined secondary inside the market card;
+            // Edit details is rare housekeeping → a low-emphasis text button.
+            PillButton(
                 if (snapshotting) "Snapshotting…" else "⊹ Snapshot today's price",
                 onClick = { if (!snapshotting) onSnapshot() },
-                accent = true,
+                enabled = !snapshotting,
             )
             ValueHistoryCard(history)
-            GhostButton("✎ Edit details", onClick = {})
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).clickable {}.padding(vertical = 13.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("✎ Edit details", color = c.textDim, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+            }
             Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                 Text("Add another", color = c.textDim, fontSize = 13.sp)
                 Text("  ·  ", color = c.textFaint, fontSize = 13.sp)
@@ -458,3 +476,15 @@ private fun ValueHistoryCard(history: List<ValueSnapshot>) {
 }
 
 private val MONTH_YEAR = DateTimeFormatter.ofPattern("MMM yyyy")
+private val SYNCED_DATE = DateTimeFormatter.ofPattern("MMM d")
+
+/** A freshness-friendly "last synced" label: relative in the recent past, an absolute date beyond a week. */
+private fun syncedLabel(at: Instant): String {
+    val days = Duration.between(at, Instant.now()).toDays()
+    return when {
+        days <= 0L -> "today"
+        days == 1L -> "yesterday"
+        days < 7L -> "$days days ago"
+        else -> at.atZone(ZoneId.systemDefault()).format(SYNCED_DATE)
+    }
+}

@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -54,13 +55,15 @@ fun PillButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier,
     Box(
         modifier
             .fillMaxWidth()
+            // The one filled-iris primary lifts off the surface with an iris glow (matches the FAB).
+            .shadow(if (enabled) 12.dp else 0.dp, RoundedCornerShape(15.dp), spotColor = c.iris, ambientColor = c.iris)
             .clip(RoundedCornerShape(15.dp))
             .background(if (enabled) c.iris else c.iris.copy(alpha = 0.5f))
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(vertical = 15.dp),
+            .padding(vertical = 16.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+        Text(text, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
     }
 }
 

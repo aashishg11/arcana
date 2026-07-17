@@ -47,6 +47,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import java.time.Duration
+import java.time.Instant
 import com.aashishgodambe.arcana.BuildConfig
 import com.aashishgodambe.arcana.core.ai.LiteRtGeminiService
 import com.aashishgodambe.arcana.core.ai.rag.EmbeddingBenchmark
@@ -66,6 +68,39 @@ import com.aashishgodambe.arcana.ui.theme.Mono
 
 private const val GITHUB_URL = "https://github.com/aashishg11/arcana"
 
+/** "Last synced 2h ago · auto-sync in 3d" — or "· auto-sync off" when the worker is disabled. The two are
+ *  independent clocks (last real sync vs. the background schedule), so the label keeps them distinct. */
+private fun syncStatusLine(status: SyncStatus, enabled: Boolean): String {
+    val last = status.lastSyncedAt?.let { "Last synced ${agoLabel(it)}" } ?: "Not synced yet"
+    val next = when {
+        !enabled -> "auto-sync off"
+        status.nextSyncAt != null -> "auto-sync ${untilLabel(status.nextSyncAt)}"
+        else -> "auto-sync pending"
+    }
+    return "$last · $next"
+}
+
+private fun agoLabel(at: Instant): String {
+    val d = Duration.between(at, Instant.now())
+    return when {
+        d.isNegative || d.toMinutes() < 1 -> "just now"
+        d.toHours() < 1 -> "${d.toMinutes()}m ago"
+        d.toDays() < 1 -> "${d.toHours()}h ago"
+        d.toDays() < 30 -> "${d.toDays()}d ago"
+        else -> "30d+ ago"
+    }
+}
+
+private fun untilLabel(at: Instant): String {
+    val d = Duration.between(Instant.now(), at)
+    return when {
+        d.isNegative || d.toMinutes() < 1 -> "shortly"
+        d.toHours() < 1 -> "in ${d.toMinutes()}m"
+        d.toDays() < 1 -> "in ${d.toHours()}h"
+        else -> "in ${d.toDays()}d"
+    }
+}
+
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
@@ -78,6 +113,7 @@ fun SettingsScreen(
     val readiness by vm.onDeviceReadiness.collectAsStateWithLifecycle()
     val askEngine by vm.askEngine.collectAsStateWithLifecycle()
     val ownModelAvailable by vm.ownModelAvailable.collectAsStateWithLifecycle()
+    val syncStatus by vm.syncStatus.collectAsStateWithLifecycle()
     var licensesOpen by remember { mutableStateOf(false) }
     val uriHandler = LocalUriHandler.current
 
@@ -105,6 +141,11 @@ fun SettingsScreen(
                         Text(
                             "Refresh values in the background once a week (Wi-Fi only).",
                             fontFamily = Mono, fontSize = 11.sp, color = c.textFaint, lineHeight = 15.sp,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            syncStatusLine(syncStatus, workerEnabled),
+                            fontFamily = Mono, fontSize = 11.sp, color = c.textDim, lineHeight = 15.sp,
                         )
                     }
                     Spacer(Modifier.width(12.dp))
@@ -194,7 +235,7 @@ fun SettingsScreen(
                     Column(Modifier.weight(1f)) {
                         Text("Benchmark", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.text)
                         Spacer(Modifier.height(3.dp))
-                        Text("On-device vs cloud latency, p50 / p95.", fontFamily = Mono, fontSize = 11.sp, color = c.textFaint)
+                        Text("On-device vs cloud latency, p50.", fontFamily = Mono, fontSize = 11.sp, color = c.textFaint)
                     }
                     Text("›", color = c.textFaint, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 }

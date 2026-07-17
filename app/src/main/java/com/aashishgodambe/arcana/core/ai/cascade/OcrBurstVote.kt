@@ -22,7 +22,10 @@ object OcrBurstVote {
      * (e.g. `[62,62,32,32]`), so the caller can break the tie with catalog knowledge before calling [pick].
      */
     fun topNumbers(layouts: List<BoxLayout>): List<String> {
-        val counts = layouts.mapNotNull { it.popNumber }.groupingBy { it }.eachCount()
+        // Plain frequency count (insertion-ordered) rather than groupingBy — the AGP-9 built-in kotlinc
+        // trips over the inlined groupingBy class on a full compile.
+        val counts = LinkedHashMap<String, Int>()
+        for (n in layouts.mapNotNull { it.popNumber }) counts[n] = (counts[n] ?: 0) + 1
         val max = counts.values.maxOrNull() ?: return emptyList()
         return counts.filter { it.value == max }.keys.toList()
     }

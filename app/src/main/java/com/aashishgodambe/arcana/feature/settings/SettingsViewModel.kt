@@ -23,18 +23,24 @@ import com.aashishgodambe.arcana.core.data.repository.CollectibleRepository
 import com.aashishgodambe.arcana.core.domain.model.FunkoPop
 import android.util.Log
 import java.time.LocalDate
+import androidx.work.WorkManager
 import com.aashishgodambe.arcana.core.data.settings.SettingsStore
 import com.aashishgodambe.arcana.core.data.settings.ThemeMode
 import com.aashishgodambe.arcana.core.data.worker.WeeklyPriceSyncScheduler
+import com.aashishgodambe.arcana.core.data.worker.WeeklyPriceSyncWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.Instant
 import javax.inject.Inject
 
 @HiltViewModel
@@ -54,6 +60,22 @@ class SettingsViewModel @Inject constructor(
 
     val weeklyWorkerEnabled: StateFlow<Boolean> = settings.weeklyWorkerEnabled
     val themeMode: StateFlow<ThemeMode> = settings.themeMode
+
+    /**
+     * Sync status for the Settings row: when prices last actually refreshed (the newest sync snapshot —
+     * manual "Sync now" or the weekly worker; the mock seed is disabled and superseded by real syncs), and
+     * when the periodic worker next runs (WorkManager's own schedule).
+     */
+    val syncStatus: StateFlow<SyncStatus> = combine(
+        repository.observePortfolioSeries(),
+        WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow(WeeklyPriceSyncWorker.NAME),
+    ) { points, infos ->
+        val nextAt = infos.firstOrNull { !it.state.isFinished }
+            ?.nextScheduleTimeMillis
+            ?.takeIf { it != Long.MAX_VALUE }
+            ?.let { Instant.ofEpochMilli(it) }
+        SyncStatus(lastSyncedAt = points.lastOrNull()?.at, nextSyncAt = nextAt)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SyncStatus())
 
     /** Selected Ask Arcana engine (persisted) and whether the side-loaded own-model can be picked. */
     val askEngine: StateFlow<AskEngine> = settings.askEngine
@@ -268,6 +290,9 @@ class SettingsViewModel @Inject constructor(
         exclusiveTo = null, isNftRedeemable = false,
     )
 }
+
+/** Weekly-sync status for the Settings row: last price refresh, and the worker's next scheduled run. */
+data class SyncStatus(val lastSyncedAt: Instant? = null, val nextSyncAt: Instant? = null)
 
 /** Debug dev-harness state for the RAG index + query. */
 data class RagHarnessState(

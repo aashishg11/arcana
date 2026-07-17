@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.LinearProgressIndicator
@@ -87,7 +88,8 @@ fun BenchmarkScreen(
 
             Spacer(Modifier.height(4.dp))
             Text(
-                "Nano (on-device) vs your Gemma (LiteRT q4) vs cloud — first-token and total latency, p50 / p95.",
+                "Nano (on-device) vs your Gemma (LiteRT q4) vs cloud — first-token and total latency, p50. " +
+                    "Lower is faster; the fastest engine in each row is green.",
                 fontSize = 14.sp, color = c.textDim, lineHeight = 20.sp,
             )
 
@@ -114,11 +116,12 @@ fun BenchmarkScreen(
 
             Spacer(Modifier.height(22.dp))
             Text(
-                "p50 / p95 over warm samples per cell (8 on-device / own-model, 4 cloud) — indicative, not " +
+                "p50 over warm samples per cell (8 on-device / own-model, 4 cloud) — indicative, not " +
                     "production-grade statistics. Cloud runs fewer iterations to conserve the free-tier budget. " +
-                    "Cold-start (first call in the process) is shown separately in gold; your Gemma's one-time " +
-                    "~3 s model load happens before inference and isn't included here. Nano never reports token " +
-                    "counts; your Gemma and cloud do. Own-model column appears only when the model is side-loaded.",
+                    "Cold-start (first call in the process) and token counts are listed under the matrix; your " +
+                    "Gemma's one-time ~3 s model load happens before inference and isn't included. Nano never " +
+                    "reports token counts; your Gemma and cloud do. Own-model column appears only when the model " +
+                    "is side-loaded.",
                 fontFamily = Mono, fontSize = 10.sp, color = c.textFaint, lineHeight = 15.sp,
             )
             Spacer(Modifier.height(40.dp))
@@ -207,62 +210,148 @@ private fun RunningCard(s: BenchmarkUiState) {
     }
 }
 
+/** Column order for the comparison matrix; engines absent from the run are filtered out. */
+private val COLUMN_ORDER = listOf(BenchmarkEngine.OnDevice, BenchmarkEngine.OwnModel, BenchmarkEngine.Cloud)
+private val LABEL_COL_WIDTH = 66.dp
+
+private fun BenchmarkEngine.columnName(): String = when (this) {
+    BenchmarkEngine.OnDevice -> "Nano"
+    BenchmarkEngine.OwnModel -> "Gemma"
+    BenchmarkEngine.Cloud -> "Cloud"
+}
+
+/**
+ * Three-column comparison matrix (Nano / your Gemma / Cloud). Each metric is a row read straight across;
+ * a per-cell bar is scaled within its row and the fastest cell goes green, so the verdict lands before you
+ * read a digit. Your Gemma is the tinted centre column — the model under evaluation, between baseline and
+ * ceiling. Replaces the old per-engine stack, which forced you to hold one engine's numbers in your head.
+ */
 @Composable
 private fun ResultsSection(results: List<BenchmarkResult>) {
     val c = ArcanaTheme.colors
-    // Grouped by engine, preserving the aggregator's engine-then-prompt order.
-    results.groupBy { it.engine }.forEach { (engine, cells) ->
-        Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            InferenceBadge(engine.badgeLocation())
-        }
-        cells.forEach { r ->
-            ResultCard(r)
-            Spacer(Modifier.height(10.dp))
-        }
-        Spacer(Modifier.height(8.dp))
-    }
-}
+    val byEngine = results.groupBy { it.engine }
+    val engines = COLUMN_ORDER.filter { byEngine.containsKey(it) }
+    val prompts = results.map { it.promptLabel }.distinct()
 
-@Composable
-private fun ResultCard(r: BenchmarkResult) {
-    val c = ArcanaTheme.colors
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(c.surface)
-            .border(1.dp, c.hairline, RoundedCornerShape(18.dp)).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .border(1.dp, c.hairline, RoundedCornerShape(18.dp)).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(r.promptLabel, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = c.text, modifier = Modifier.weight(1f))
-            Text("n=${r.warmSampleCount}", fontFamily = Mono, fontSize = 11.sp, color = c.textFaint)
+        // Column headers: an empty cell over the metric-label column, then one header per engine.
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+            Spacer(Modifier.width(LABEL_COL_WIDTH))
+            engines.forEach { e -> ColumnHeader(e, Modifier.weight(1f)) }
         }
-        MetricRow("FIRST TOKEN", r.firstTokenWarm.p50Ms, r.firstTokenWarm.p95Ms)
-        MetricRow("TOTAL", r.totalWarm.p50Ms, r.totalWarm.p95Ms)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            r.coldTotalMs?.let { ArcanaChip("cold · ${latency(it)}", ChipStyle.Gold) }
-            ArcanaChip(
-                r.outputTokenCount?.let { "$it tok" } ?: "n/a tokens",
-                if (r.outputTokenCount != null) ChipStyle.Cloud else ChipStyle.Plain,
-            )
-            if (r.errorCount > 0) {
-                Spacer(Modifier.weight(1f))
-                Text("${r.errorCount} rate-limited", fontFamily = Mono, fontSize = 10.sp, color = c.down)
+        prompts.forEach { prompt ->
+            val n = results.firstOrNull { it.promptLabel == prompt }?.warmSampleCount ?: 0
+            Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                Text(
+                    "$prompt · n=$n".uppercase(), fontFamily = Mono, fontSize = 10.sp, color = c.textFaint, letterSpacing = 0.8.sp,
+                )
+                MatrixRow("first tok", prompt, engines, byEngine) { it.firstTokenWarm.p50Ms }
+                MatrixRow("total", prompt, engines, byEngine) { it.totalWarm.p50Ms }
             }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Box(Modifier.size(8.dp).clip(RoundedCornerShape(2.dp)).background(c.up))
+            Text("green = fastest for that row", fontFamily = Mono, fontSize = 10.sp, color = c.up)
+        }
+    }
+
+    // Cold-start + token counts are kept out of the comparison matrix (they'd dilute the read) but preserved
+    // here per engine: cold-start is the first-call latency, tokens the generated count (Nano reports none).
+    Spacer(Modifier.height(12.dp))
+    ColdAndTokens(results, engines)
+}
+
+@Composable
+private fun ColumnHeader(engine: BenchmarkEngine, modifier: Modifier) {
+    val c = ArcanaTheme.colors
+    val dot = when (engine) {
+        BenchmarkEngine.OnDevice -> c.iris
+        BenchmarkEngine.OwnModel -> c.gold
+        BenchmarkEngine.Cloud -> c.cloud
+    }
+    Column(
+        modifier.padding(horizontal = 3.dp)
+            .then(if (engine == BenchmarkEngine.OwnModel) Modifier.clip(RoundedCornerShape(8.dp)).background(c.irisSoft) else Modifier)
+            .padding(horizontal = 7.dp, vertical = 5.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            Box(Modifier.size(6.dp).clip(CircleShape).background(dot))
+            Text(engine.columnName(), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = c.text)
+        }
+        if (engine == BenchmarkEngine.OwnModel) {
+            Text("YOURS", fontFamily = Mono, fontSize = 8.sp, color = c.gold, letterSpacing = 1.5.sp)
         }
     }
 }
 
 @Composable
-private fun MetricRow(label: String, p50: Long?, p95: Long?) {
+private fun MatrixRow(
+    label: String,
+    prompt: String,
+    engines: List<BenchmarkEngine>,
+    byEngine: Map<BenchmarkEngine, List<BenchmarkResult>>,
+    selector: (BenchmarkResult) -> Long?,
+) {
     val c = ArcanaTheme.colors
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-        Text(label, fontFamily = Mono, fontSize = 11.sp, color = c.textFaint, modifier = Modifier.width(104.dp))
-        Column(Modifier.weight(1f)) {
-            Text("p50", fontFamily = Mono, fontSize = 9.sp, color = c.textFaint)
-            Text(latency(p50), fontFamily = Mono, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = c.text)
+    val values = engines.map { e -> byEngine[e]?.firstOrNull { it.promptLabel == prompt }?.let(selector) }
+    val present = values.filterNotNull()
+    val fastest = present.minOrNull()
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        Text(label, fontFamily = Mono, fontSize = 10.sp, color = c.textFaint, modifier = Modifier.width(LABEL_COL_WIDTH).padding(top = 3.dp))
+        engines.forEachIndexed { i, e ->
+            val v = values[i]
+            // Bar filled by relative speed: the fastest (min latency) fills the row, slower cells are shorter.
+            val frac = if (v != null && v > 0 && fastest != null) (fastest.toFloat() / v).coerceIn(0.1f, 1f) else 0f
+            MatrixCell(
+                text = latency(v),
+                barFraction = frac,
+                isFastest = v != null && v == fastest,
+                isOwnModel = e == BenchmarkEngine.OwnModel,
+                modifier = Modifier.weight(1f),
+            )
         }
-        Column(Modifier.weight(1f)) {
-            Text("p95", fontFamily = Mono, fontSize = 9.sp, color = c.textFaint)
-            Text(latency(p95), fontFamily = Mono, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = c.textDim)
+    }
+}
+
+@Composable
+private fun MatrixCell(text: String, barFraction: Float, isFastest: Boolean, isOwnModel: Boolean, modifier: Modifier) {
+    val c = ArcanaTheme.colors
+    val valueColor = if (isFastest) c.up else c.text
+    val barColor = if (isFastest) c.up else c.iris.copy(alpha = 0.5f)
+    Column(
+        modifier.padding(horizontal = 3.dp)
+            .then(if (isOwnModel) Modifier.clip(RoundedCornerShape(8.dp)).background(c.irisSoft) else Modifier)
+            .padding(horizontal = 7.dp, vertical = 5.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        Text(text, fontFamily = Mono, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = valueColor, maxLines = 1)
+        Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)).background(c.hairline)) {
+            Box(Modifier.fillMaxWidth(barFraction).height(4.dp).clip(RoundedCornerShape(2.dp)).background(barColor))
+        }
+    }
+}
+
+@Composable
+private fun ColdAndTokens(results: List<BenchmarkResult>, engines: List<BenchmarkEngine>) {
+    val c = ArcanaTheme.colors
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        engines.forEach { e ->
+            val rs = results.filter { it.engine == e }
+            val cold = rs.firstNotNullOfOrNull { it.coldTotalMs }
+            val tok = rs.firstNotNullOfOrNull { it.outputTokenCount }
+            val errors = rs.sumOf { it.errorCount }
+            val parts = buildList {
+                add(e.columnName())
+                cold?.let { add("cold ${latency(it)}") }
+                add(tok?.let { "$it tok" } ?: "no tok")
+                if (errors > 0) add("$errors rate-limited")
+            }
+            Text(parts.joinToString("  ·  "), fontFamily = Mono, fontSize = 10.sp, color = c.textFaint)
         }
     }
 }

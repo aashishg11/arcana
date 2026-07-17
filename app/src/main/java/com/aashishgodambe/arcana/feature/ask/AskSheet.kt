@@ -54,8 +54,9 @@ import com.aashishgodambe.arcana.ui.theme.Mono
 
 /**
  * "Ask Arcana" — a [ModalBottomSheet] (not a nav route). Multi-turn hybrid inference; each turn
- * renders inline as question → retrieved chips → answer. The [InferenceBadge] flips on-device/cloud
- * per answer, [StreamingText] animates the tokens. Week 9 upgrades retrieval to RAG over embeddings.
+ * renders inline as question → answer → a collapsed "Grounded in N items" provenance disclosure (the
+ * answer leads; grounding recedes). The [InferenceBadge] flips on-device/cloud per answer,
+ * [StreamingText] animates the tokens. Week 9 upgrades retrieval to RAG over embeddings.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -104,7 +105,7 @@ fun AskSheet(onDismiss: () -> Unit, onItemClick: (Long) -> Unit, vm: AskViewMode
                 itemsIndexed(s.turns) { index, turn ->
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Bubble(turn.question, fromUser = true, streaming = false)
-                        if (turn.grounding.isNotEmpty()) GroundingStrip(turn.grounding, onItemClick)
+                        // Answer leads — the thing actually asked for sits directly under the question.
                         when {
                             turn.error != null -> Text("⚠ ${turn.error}", color = c.down, fontFamily = Mono, fontSize = 12.sp)
                             turn.answer != null -> Bubble(turn.answer, fromUser = false, streaming = false)
@@ -123,6 +124,9 @@ fun AskSheet(onDismiss: () -> Unit, onItemClick: (Long) -> Unit, vm: AskViewMode
                                 }
                             }
                         }
+                        // Grounding recedes — provenance, not content: a disclosure collapsed by default,
+                        // beneath the answer. Expands to the full-label chips (nothing truncated).
+                        if (turn.grounding.isNotEmpty()) GroundedDisclosure(turn.grounding, onItemClick)
                     }
                 }
             }
@@ -174,20 +178,32 @@ fun AskSheet(onDismiss: () -> Unit, onItemClick: (Long) -> Unit, vm: AskViewMode
 }
 
 @Composable
-private fun GroundingStrip(grounding: List<GroundingItem>, onItemClick: (Long) -> Unit) {
+private fun GroundedDisclosure(grounding: List<GroundingItem>, onItemClick: (Long) -> Unit) {
     val c = ArcanaTheme.colors
-    Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.elevated)
-            .border(1.dp, c.hairlineStrong, RoundedCornerShape(12.dp)).padding(10.dp, 10.dp),
-    ) {
-        Text("◆ RETRIEVED FROM YOUR COLLECTION · ${grounding.size} ITEMS", fontFamily = Mono, fontSize = 10.sp, color = c.textFaint, letterSpacing = 0.8.sp)
-        Spacer(Modifier.height(7.dp))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            grounding.forEach { g ->
-                Text(
-                    g.label, fontFamily = Mono, fontSize = 11.sp, color = c.textDim,
-                    modifier = Modifier.clip(RoundedCornerShape(7.dp)).background(c.surface).border(1.dp, c.hairline, RoundedCornerShape(7.dp)).clickable { onItemClick(g.localId) }.padding(horizontal = 8.dp, vertical = 4.dp),
-                )
+    // Chips shown by default; the header still toggles them collapsed.
+    var expanded by remember { mutableStateOf(true) }
+    Column(Modifier.fillMaxWidth()) {
+        // Provenance header — reads as trust, not content. Tap to reveal the grounding items.
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { expanded = !expanded }.padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "◆ GROUNDED IN ${grounding.size} ITEMS",
+                fontFamily = Mono, fontSize = 11.sp, color = c.textFaint, letterSpacing = 0.5.sp,
+                modifier = Modifier.weight(1f),
+            )
+            Text(if (expanded) "▾" else "▸", color = c.textFaint, fontSize = 11.sp)
+        }
+        if (expanded) {
+            Spacer(Modifier.height(7.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                grounding.forEach { g ->
+                    Text(
+                        g.label, fontFamily = Mono, fontSize = 11.sp, color = c.textDim,
+                        modifier = Modifier.clip(RoundedCornerShape(7.dp)).background(c.surface).border(1.dp, c.hairlineStrong, RoundedCornerShape(7.dp)).clickable { onItemClick(g.localId) }.padding(horizontal = 8.dp, vertical = 4.dp),
+                    )
+                }
             }
         }
     }
@@ -200,16 +216,16 @@ private fun Bubble(text: String, fromUser: Boolean, streaming: Boolean) {
         Box(
             Modifier.fillMaxWidth(0.86f).clip(
                 RoundedCornerShape(
-                    topStart = 16.dp, topEnd = 16.dp,
-                    bottomEnd = if (fromUser) 5.dp else 16.dp,
-                    bottomStart = if (fromUser) 16.dp else 5.dp,
+                    topStart = 20.dp, topEnd = 20.dp,
+                    bottomEnd = if (fromUser) 6.dp else 20.dp,
+                    bottomStart = if (fromUser) 20.dp else 6.dp,
                 ),
             ).background(if (fromUser) c.iris else c.surface)
-                .then(if (fromUser) Modifier else Modifier.border(1.dp, c.hairline, RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomEnd = 16.dp, bottomStart = 5.dp)))
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                .then(if (fromUser) Modifier else Modifier.border(1.dp, c.hairline, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomEnd = 20.dp, bottomStart = 6.dp)))
+                .padding(horizontal = 16.dp, vertical = 13.dp),
         ) {
             if (fromUser) {
-                Text(text, color = Color.White, fontSize = 14.sp, lineHeight = 22.sp)
+                Text(text, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium, lineHeight = 22.sp)
             } else {
                 StreamingText(text = text, streaming = streaming, color = c.text)
             }

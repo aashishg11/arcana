@@ -4,6 +4,7 @@ import com.aashishgodambe.arcana.core.ai.model.PriceResult
 import com.aashishgodambe.arcana.core.ai.pricing.PriceProviderChain
 import com.aashishgodambe.arcana.core.data.database.entity.SnapshotTrigger
 import com.aashishgodambe.arcana.core.data.repository.CollectibleRepository
+import kotlinx.coroutines.delay
 import java.time.Instant
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
@@ -23,7 +24,8 @@ class SyncAllPrices @Inject constructor(
         // aggregate point), not one instant per item.
         val syncedAt = Instant.now()
         var synced = 0
-        for (item in repository.allCollectibles()) {
+        val items = repository.allCollectibles()
+        items.forEachIndexed { index, item ->
             try {
                 val price = priceChain.fetchPrice(item)
                 if (price is PriceResult.Success) {
@@ -41,7 +43,15 @@ class SyncAllPrices @Inject constructor(
             } catch (_: Exception) {
                 // per-item best-effort — a single failure doesn't abort the sync
             }
+            // Pace the price source: a tight loop bursts past eBay Browse's per-second throttle, and
+            // throttled items fall through to the mock. A small gap keeps the whole sweep on real prices.
+            if (index < items.lastIndex) delay(PACING_MS)
         }
         return synced
+    }
+
+    private companion object {
+        /** Gap between per-item price fetches, to stay under eBay Browse's burst throttle. */
+        const val PACING_MS = 350L
     }
 }

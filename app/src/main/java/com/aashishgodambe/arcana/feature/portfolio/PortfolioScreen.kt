@@ -1,5 +1,6 @@
 package com.aashishgodambe.arcana.feature.portfolio
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
@@ -31,7 +33,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -44,12 +53,10 @@ import com.aashishgodambe.arcana.core.ai.model.InferenceLocation
 import com.aashishgodambe.arcana.core.ai.model.InferenceResult
 import com.aashishgodambe.arcana.core.ai.summary.CollectionSummarizer
 import com.aashishgodambe.arcana.core.data.database.entity.CollectionGroup
-import com.aashishgodambe.arcana.core.data.database.entity.SnapshotTrigger
+import com.aashishgodambe.arcana.core.data.worker.WeeklyPriceSyncScheduler
 import com.aashishgodambe.arcana.core.data.repository.CollectibleRepository
 import com.aashishgodambe.arcana.core.domain.model.PortfolioPoint
 import com.aashishgodambe.arcana.core.domain.usecase.ComputeWeeklyDeltas
-import com.aashishgodambe.arcana.core.domain.usecase.SeedMockHistory
-import com.aashishgodambe.arcana.core.domain.usecase.SyncAllPrices
 import com.aashishgodambe.arcana.feature.ask.AskSheet
 import com.aashishgodambe.arcana.ui.component.ChartRange
 import com.aashishgodambe.arcana.ui.component.InferenceBadge
@@ -69,6 +76,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -82,9 +90,17 @@ data class PortfolioUiState(
     val topGroups: List<CollectionGroup> = emptyList(),
     val points: List<PortfolioPoint> = emptyList(),   // aggregate totals, oldest → newest
 ) {
-    /** Week-over-week change, or null when there aren't yet two points to compare. */
+    /** Change over the last ~7 days: the latest point vs the newest point at least a week older — a real
+     *  time window, so a burst of same-day syncs can't fake a "this week" number. Null until a point that
+     *  old exists. */
     val weekDeltaCents: Int?
-        get() = if (points.size >= 2) points.last().totalValueCents - points[points.size - 2].totalValueCents else null
+        get() {
+            if (points.isEmpty()) return null
+            val latest = points.last()
+            val cutoff = latest.at.minus(Duration.ofDays(7))
+            val prior = points.lastOrNull { it.at <= cutoff } ?: return null
+            return latest.totalValueCents - prior.totalValueCents
+        }
 
     val lastSyncedAt: Instant? get() = points.lastOrNull()?.at
 
@@ -104,10 +120,9 @@ data class SummaryUiState(
 @HiltViewModel
 class PortfolioViewModel @Inject constructor(
     repository: CollectibleRepository,
-    seedMockHistory: SeedMockHistory,
     private val computeWeeklyDeltas: ComputeWeeklyDeltas,
     private val summarizer: CollectionSummarizer,
-    private val syncAllPrices: SyncAllPrices,
+    private val syncScheduler: WeeklyPriceSyncScheduler,
 ) : ViewModel() {
     val state: StateFlow<PortfolioUiState> = combine(
         repository.observeTotalValueCents(),
@@ -128,29 +143,24 @@ class PortfolioViewModel @Inject constructor(
     private val _summary = MutableStateFlow(SummaryUiState())
     val summary: StateFlow<SummaryUiState> = _summary.asStateFlow()
 
-    private val _syncing = MutableStateFlow(false)
-    val syncing: StateFlow<Boolean> = _syncing.asStateFlow()
+    /** True while the manual "Sync now" background job (WorkManager) is enqueued or running. */
+    val syncing: StateFlow<Boolean> = syncScheduler.syncNowRunning()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     init {
-        // Seed once (idempotent), then generate the weekly summary on-device from the resulting deltas.
-        // On-device inference is foreground-only (Week-2 finding), so this runs on Portfolio load — not
-        // in the background worker.
-        viewModelScope.launch {
-            seedMockHistory()
-            generateSummary()
-        }
+        // On-device inference is foreground-only (Week-2 finding), so the weekly summary is generated here,
+        // not in a worker: once on Portfolio load, and again whenever a background "Sync now" completes.
+        // (Synthetic history seeding was removed: value history now comes only from real eBay syncs.)
+        viewModelScope.launch { generateSummary() }
+        viewModelScope.launch { syncScheduler.syncNowCompletions().collect { generateSummary() } }
     }
 
-    /** "Sync now" — the same [SyncAllPrices] path as the weekly worker, on demand; then re-summarize. */
-    fun syncNow() {
-        if (_syncing.value) return
-        _syncing.value = true
-        viewModelScope.launch {
-            syncAllPrices(SnapshotTrigger.UserRefresh)   // writes fresh snapshots → charts update reactively
-            generateSummary()                             // refresh the "what moved" card from new deltas
-            _syncing.value = false
-        }
-    }
+    /** "Sync now" — enqueue a background WorkManager job (survives app backgrounding, screen lock, and
+     *  process death), instead of running in this ViewModel's scope. The UI reflects it via [syncing]. */
+    fun syncNow() = syncScheduler.syncNow()
+
+    /** Cancel a running manual sync (clean stop — no WorkManager retry). */
+    fun cancelSync() = syncScheduler.cancelSyncNow()
 
     private suspend fun generateSummary() {
         val deltas = computeWeeklyDeltas() ?: return   // thin data → keep the placeholder
@@ -191,8 +201,8 @@ fun PortfolioScreen(
                 Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("Arcana", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, color = c.text)
                     Spacer(Modifier.weight(1f))
-                    Box(Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(c.surface).border(1.dp, c.hairline, RoundedCornerShape(12.dp)).clickable(onClick = onOpenSettings), contentAlignment = Alignment.Center) {
-                        Text("⚙", color = c.textDim, fontSize = 17.sp)
+                    Box(Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(c.surface).border(1.dp, c.hairlineStrong, RoundedCornerShape(13.dp)).clickable(onClick = onOpenSettings), contentAlignment = Alignment.Center) {
+                        SlidersIcon()
                     }
                 }
 
@@ -248,9 +258,9 @@ fun PortfolioScreen(
                         fontFamily = Mono, fontSize = 11.sp, color = c.textFaint,
                     )
                     Text(
-                        if (syncing) "Syncing…" else "Sync now",
-                        fontFamily = Mono, fontSize = 11.sp, color = c.iris,
-                        modifier = Modifier.clickable(enabled = !syncing) { vm.syncNow() },
+                        if (syncing) "Syncing… ✕ cancel" else "↺ Sync now",
+                        fontFamily = Mono, fontSize = 11.sp, color = if (syncing) c.down else c.iris,
+                        modifier = Modifier.clickable { if (syncing) vm.cancelSync() else vm.syncNow() },
                     )
                 }
 
@@ -306,20 +316,48 @@ fun PortfolioScreen(
                     Text("Coming soon", fontFamily = Mono, fontSize = 12.sp, color = c.textFaint)
                 }
 
-                Spacer(Modifier.height(90.dp))
+                Spacer(Modifier.height(150.dp))
             }
 
-            // FAB + Ask pill
-            Column(Modifier.align(Alignment.BottomEnd).padding(20.dp), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(
-                    Modifier.clip(RoundedCornerShape(999.dp)).background(c.surface).border(1.dp, c.hairlineStrong, RoundedCornerShape(999.dp)).clickable { askOpen = true }.padding(horizontal = 16.dp, vertical = 11.dp),
-                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+            // A light scrim: the list fades into the background behind the compose bar rather than
+            // clashing with it (replacing the old bottom sheet that hid half the list).
+            Box(
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(200.dp)
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, c.bg))),
+            )
+
+            // Ask compose bar + Capture FAB — two distinct affordance classes so they stop competing.
+            // Asking is ambient → a persistent, low-chrome compose bar pinned full-width at the bottom.
+            // Capture is a deliberate act → the one saturated iris FAB, floating above the bar's end.
+            Column(
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 26.dp),
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                // Capture FAB — the one saturated element, lifted off the surface by an iris glow.
+                Box(
+                    Modifier.size(62.dp)
+                        .shadow(18.dp, RoundedCornerShape(20.dp), spotColor = c.iris, ambientColor = c.iris)
+                        .clip(RoundedCornerShape(20.dp)).background(c.iris).clickable(onClick = onOpenCapture),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Box(Modifier.size(7.dp).clip(RoundedCornerShape(999.dp)).background(c.iris))
-                    Text("Ask Arcana", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = c.text)
+                    CameraGlyph()
                 }
-                Box(Modifier.size(58.dp).clip(RoundedCornerShape(20.dp)).background(c.iris).clickable(onClick = onOpenCapture), contentAlignment = Alignment.Center) {
-                    Text("⊕", color = Color.White, fontSize = 24.sp)
+                // Persistent Ask compose bar — a full pill, low-chrome; tapping opens the Ask flow.
+                Row(
+                    Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(27.dp)).background(c.surface)
+                        .border(1.dp, c.hairlineStrong, RoundedCornerShape(27.dp)).clickable { askOpen = true }
+                        .padding(start = 20.dp, end = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text("Ask about your collection…", color = c.textDim, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    Box(
+                        Modifier.size(38.dp).clip(CircleShape).background(c.elevated),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("↑", fontFamily = Mono, color = c.iris, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
@@ -400,6 +438,65 @@ private fun StatRow(label: String, value: String, emphasize: Boolean = false) {
             fontWeight = if (emphasize) FontWeight.Bold else FontWeight.Medium,
             color = c.text,
         )
+    }
+}
+
+/** The Capture FAB's icon — a clean outlined camera (open-bottom viewfinder hump, body, lens), drawn to
+ *  match the wireframe rather than a stock glyph, since the app renders all its icons as marks. */
+@Composable
+private fun CameraGlyph() {
+    Canvas(Modifier.size(width = 28.dp, height = 22.dp)) {
+        val s = 2.3.dp.toPx()
+        val w = size.width
+        val h = size.height
+        val bodyTop = 5.dp.toPx()
+        // Camera body.
+        drawRoundRect(
+            color = Color.White,
+            topLeft = Offset(0f, bodyTop),
+            size = Size(w, h - bodyTop),
+            cornerRadius = CornerRadius(5.dp.toPx(), 5.dp.toPx()),
+            style = Stroke(s),
+        )
+        // Viewfinder — an open-bottom hump whose ends meet the body's top edge.
+        val bl = 7.dp.toPx()
+        val br = 16.dp.toPx()
+        val r = 2.dp.toPx()
+        val bump = Path().apply {
+            moveTo(bl, bodyTop)
+            lineTo(bl, r)
+            quadraticTo(bl, 0f, bl + r, 0f)
+            lineTo(br - r, 0f)
+            quadraticTo(br, 0f, br, r)
+            lineTo(br, bodyTop)
+        }
+        drawPath(bump, color = Color.White, style = Stroke(s))
+        // Lens.
+        drawCircle(
+            color = Color.White,
+            radius = 4.dp.toPx(),
+            center = Offset(w / 2f, bodyTop + (h - bodyTop) / 2f),
+            style = Stroke(s),
+        )
+    }
+}
+
+/** The Settings entry icon — a sliders/adjustments mark (dot+line, then line+dot), matching the wireframe;
+ *  not a gear glyph. */
+@Composable
+private fun SlidersIcon() {
+    val c = ArcanaTheme.colors
+    Column(Modifier.width(22.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(6.dp).clip(CircleShape).background(c.textDim))
+            Spacer(Modifier.width(3.dp))
+            Box(Modifier.weight(1f).height(1.5.dp).clip(RoundedCornerShape(1.dp)).background(c.hairlineStrong))
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f).height(1.5.dp).clip(RoundedCornerShape(1.dp)).background(c.hairlineStrong))
+            Spacer(Modifier.width(3.dp))
+            Box(Modifier.size(6.dp).clip(CircleShape).background(c.textDim))
+        }
     }
 }
 

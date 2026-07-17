@@ -42,7 +42,9 @@ val ArcanaDarkColors = ArcanaColors(
     hairlineStrong = Color(0x24FFFFFF),
     text = Color(0xFFECEAF2),
     textDim = Color(0xFF9A93AD),
-    textFaint = Color(0xFF6A6480),
+    // Lifted from the old dim grey (#6A6480, ~3:1 — fails WCAG AA) to clear AA+AAA on the dark
+    // surfaces where mono micro-data lives (benchmark captions, listing meta, section eyebrows).
+    textFaint = Color(0xFFC4C1D0),
     isDark = true,
 )
 

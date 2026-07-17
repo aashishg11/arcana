@@ -242,12 +242,31 @@ private fun OcrCallout(number: String) {
 /** The catalog-chain status lines, appearing as each beat resolves — in real resolution order. */
 @Composable
 private fun RunningBeats(s: CaptureReviewUiState) {
-    val c = ArcanaTheme.colors
     Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
         if (s.popNumber != null) StatusLine(done = true, label = "Box number read", detail = "OCR → #${s.popNumber}")
         if (s.subjectReady) StatusLine(done = true, label = "Subject isolated", detail = "ML Kit segmentation")
         if (s.matching) StatusLine(done = false, label = "Checking your collection…", detail = "local · eBay")
+        Spacer(Modifier.height(2.dp))
+        ElapsedLine()
     }
+}
+
+/** A live "cascade running · N.Ns elapsed" ticker — makes the on-device work read as actively in progress. */
+@Composable
+private fun ElapsedLine() {
+    val c = ArcanaTheme.colors
+    var elapsedMs by remember { mutableStateOf(0L) }
+    LaunchedEffect(Unit) {
+        val start = System.nanoTime()
+        while (true) {
+            elapsedMs = (System.nanoTime() - start) / 1_000_000
+            kotlinx.coroutines.delay(100)
+        }
+    }
+    Text(
+        "cascade running · ${"%.1f".format(elapsedMs / 1000.0)}s elapsed",
+        fontFamily = Mono, fontSize = 10.sp, color = c.textFaint,
+    )
 }
 
 @Composable

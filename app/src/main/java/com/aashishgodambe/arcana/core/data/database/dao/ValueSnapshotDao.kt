@@ -35,36 +35,50 @@ interface ValueSnapshotDao {
     suspend fun totalCount(): Int
 
     /**
-     * Aggregate portfolio value series: for each *batch* snapshot instant (seed week or a full sync), the
-     * total value across the collection counting duplicate copies (Σ valueCents × quantity). `HAVING
-     * COUNT(*) > 1` keeps only instants where many items were snapshotted together, so a single-item
-     * "Snapshot today's price" doesn't create a spurious near-zero portfolio point. Backs the sparkline.
+     * Aggregate portfolio value series, **as-of each batch instant**: for every multi-item snapshot instant
+     * (a seed week or a sync), the total value of the *whole* collection at that time — each item valued at
+     * its latest snapshot ≤ that instant (Σ valueCents × quantity). Computing it as-of, rather than summing
+     * only the items stamped at that exact instant, means a **partial or cancelled sync** shows the real
+     * portfolio value (its unsynced items retain their prior value) instead of a misleading subset-sum.
+     * `HAVING COUNT(*) > 1` still keeps single-item "Snapshot today's price" instants out of the sparkline.
      */
     @Query(
         """
-        SELECT vs.snapshotAt AS at, SUM(vs.valueCents * c.quantity) AS totalValueCents
-        FROM value_snapshots vs
-        JOIN collectibles c ON c.localId = vs.collectibleLocalId
-        GROUP BY vs.snapshotAt
-        HAVING COUNT(*) > 1
-        ORDER BY vs.snapshotAt
+        SELECT sub.at AS at,
+          COALESCE((
+            SELECT SUM(ls.valueCents * c.quantity)
+            FROM collectibles c
+            JOIN value_snapshots ls ON ls.collectibleLocalId = c.localId
+            WHERE ls.snapshotAt = (
+              SELECT MAX(vs2.snapshotAt) FROM value_snapshots vs2
+              WHERE vs2.collectibleLocalId = c.localId AND vs2.snapshotAt <= sub.at
+            )
+          ), 0) AS totalValueCents
+        FROM (SELECT snapshotAt AS at FROM value_snapshots GROUP BY snapshotAt HAVING COUNT(*) > 1) sub
+        ORDER BY sub.at
         """,
     )
     fun observePortfolioSeries(): Flow<List<PortfolioPointRow>>
 
     /**
-     * Per-list value series: for each (HobbyDB list, snapshot instant), the list's total value counting
-     * duplicate copies. Feeds the weekly per-list delta the on-device summary narrates ("Nft funko led,
-     * Star Wars was flat"). Ordered by list then time so the caller can diff consecutive points.
+     * Per-list value series, **as-of each batch instant** (same construction as [observePortfolioSeries]):
+     * for each (HobbyDB list, batch instant), the list's total value with every item at its latest snapshot
+     * ≤ that instant. As-of so a partial/cancelled sync doesn't hand the weekly summary a subset-sum for a
+     * list. Feeds the per-list delta the on-device summary narrates ("Nft funko led, Star Wars was flat").
      */
     @Query(
         """
-        SELECT c.listName AS name, vs.snapshotAt AS at, SUM(vs.valueCents * c.quantity) AS totalValueCents
-        FROM value_snapshots vs
-        JOIN collectibles c ON c.localId = vs.collectibleLocalId
+        SELECT c.listName AS name, sub.at AS at, SUM(ls.valueCents * c.quantity) AS totalValueCents
+        FROM (SELECT snapshotAt AS at FROM value_snapshots GROUP BY snapshotAt HAVING COUNT(*) > 1) sub
+        CROSS JOIN collectibles c
+        JOIN value_snapshots ls ON ls.collectibleLocalId = c.localId
+          AND ls.snapshotAt = (
+            SELECT MAX(vs2.snapshotAt) FROM value_snapshots vs2
+            WHERE vs2.collectibleLocalId = c.localId AND vs2.snapshotAt <= sub.at
+          )
         WHERE c.listName IS NOT NULL AND c.listName != ''
-        GROUP BY c.listName, vs.snapshotAt
-        ORDER BY c.listName, vs.snapshotAt
+        GROUP BY c.listName, sub.at
+        ORDER BY c.listName, sub.at
         """,
     )
     suspend fun listValueSeries(): List<ListValuePointRow>

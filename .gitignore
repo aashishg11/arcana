@@ -49,3 +49,6 @@ seed-data/*.raw.csv
 /tools/executorch-harness/app/build/
 # Quantized model artifacts are 86 MiB – 1.7 GiB — never committed; rebuild from export/.
 *.pte
+
+# Design-review screenshots (may show personal collection)
+/docs/review/

@@ -180,6 +180,14 @@ The identification centerpiece — the **capture cascade** — ships as a **conf
 | 11 | **Accuracy eval harness** — labeled fixtures + runner + scorer + committed results for retrieval *and* cascade identification; caught 3 real bugs, all fixed with measured deltas | ✅ |
 | 12 | Cross-vendor NPU benchmark (Snapdragon/Hexagon — parked, no device); write-up & apply | ◻︎ |
 
+## Open questions & known limitations
+
+Stated plainly — surfacing these reads as rigor, not gaps.
+
+- **The value-history chart runs on seeded synthetic history, not real price history.** Current values are real (the HobbyDB import baseline); the *time series* behind the portfolio sparkline, the per-item chart, and every weekly / 30-day delta is deterministically seeded (`SeedMockHistory` / `MockPriceModel`, anchored on the real import value) so the feature is demonstrable on first open instead of a flat line on an empty axis. The tracking architecture is real and accumulates genuine history going forward via `WeeklyPriceSyncWorker`.
+  - **Why not just pull it from eBay?** eBay's APIs don't expose a usable price series. **Browse** (what Arcana calls) returns *current active listings only*. **Marketplace Insights** — the sole sold/price-history endpoint — returns only a **rolling last-90-days** window of sold comps, is **Limited Release** (application-gated), and its Restricted-API terms bar feeding the data to an LLM. Retroactive long-run history would come from a paid source like **PriceCharting** (the documented `PriceProvider` upgrade path). So: current values real, tracking real and forward-accumulating, retroactive history unavailable without a paid feed.
+- **Cross-vendor NPU benchmark (Snapdragon / Hexagon) — parked, no device.** The Tensor G5 TPU is a measured dead end for LLM decode ([LiteRT #7787](https://github.com/google-ai-edge/LiteRT/issues/7787)); the open question is whether a Hexagon NPU clears the memory/throughput bar Tensor's didn't. Bounded, with an expected outcome; revisited if a device appears.
+
 ## About
 
 Built by **Aashish Godambe** ([@aashishg11](https://github.com/aashishg11)) — Senior Android Engineer focused on on-device AI. Companion project: [Ansa Aura](https://github.com/aashishg11/ansa-aura), a private family AI home platform (edge AI/systems, complementary to Arcana's mobile-first focus).

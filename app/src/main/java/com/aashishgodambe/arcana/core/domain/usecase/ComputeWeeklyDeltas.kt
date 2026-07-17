@@ -4,30 +4,33 @@ import com.aashishgodambe.arcana.core.data.repository.CollectibleRepository
 import com.aashishgodambe.arcana.core.domain.model.ListDelta
 import com.aashishgodambe.arcana.core.domain.model.WeeklyDeltas
 import kotlinx.coroutines.flow.first
+import java.time.Duration
 import javax.inject.Inject
 import kotlin.math.abs
 
 /**
- * Computes the week's per-list value movement from the user's own snapshot series — the input the
- * on-device summary narrates. Diffs each list's value at the two most-recent shared snapshot instants
- * ("this week" vs "last week") and orders lists by how much they moved, biggest mover first.
+ * Computes the last ~7 days of per-list value movement from the user's own snapshot series — the input the
+ * on-device summary narrates. Uses the **same 7-day window as the headline delta** (latest batch instant vs
+ * the newest instant at least a week older), so the summary and the "$X this week" header always agree, and
+ * a burst of same-day syncs can't be mistaken for weekly movement. Orders lists by how much they moved.
  *
- * Returns null when there aren't yet two snapshot instants to compare (thin data) — the card then keeps
- * its "tracking just started" state instead of summarizing a single point.
+ * Returns null when there's no instant a week old yet (thin data) — the card keeps its "tracking just
+ * started" state instead of summarizing over too short a window.
  */
 class ComputeWeeklyDeltas @Inject constructor(
     private val repository: CollectibleRepository,
 ) {
     suspend operator fun invoke(): WeeklyDeltas? {
-        // Anchor "this week" vs "last week" to the two most recent *batch* instants from the aggregate
-        // portfolio series (which already excludes single-item snapshots) — so a lone "Snapshot today's
-        // price" can't be mistaken for a weekly sample. The overall total is this portfolio-wide delta
-        // (all items, matching the headline), not the sum of per-list deltas.
+        // Anchor "this week" to the same 7-day window as the headline delta: the latest batch instant vs the
+        // newest instant at least a week older. The overall total is this portfolio-wide delta (all items,
+        // matching the headline), not the sum of per-list deltas.
         val portfolio = repository.observePortfolioSeries().first()
-        if (portfolio.size < 2) return null
-        val current = portfolio.last().at
-        val previous = portfolio[portfolio.size - 2].at
-        val total = portfolio.last().totalValueCents - portfolio[portfolio.size - 2].totalValueCents
+        if (portfolio.isEmpty()) return null
+        val latest = portfolio.last()
+        val reference = portfolio.lastOrNull { it.at <= latest.at.minus(Duration.ofDays(7)) } ?: return null
+        val current = latest.at
+        val previous = reference.at
+        val total = latest.totalValueCents - reference.totalValueCents
 
         val series = repository.listValueSeries()
         val lists = series.mapNotNull { (name, points) ->
