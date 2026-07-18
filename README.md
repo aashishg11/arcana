@@ -4,7 +4,7 @@
 
 Arcana catalogs a collection of *anything* — Funko Pops, FigPins, trading cards, sneakers — and uses **on-device Gemini Nano** to do what cloud apps can't or won't: "chat with your collection," value tracking over time, weekly AI summaries, and (soon) instant in-store identification. Every inference attempts on-device first; the cloud is a fallback, never the default. Your collection's data stays on your device.
 
-> **Status: 🚧 In active development (Week 11 of a 12-week build).** Built in the open as a portfolio piece demonstrating production-grade on-device AI on Android. **All eight Google `ai-samples` on-device capabilities are shipped**, and both halves of the measurement story are now in place — **latency *and* accuracy**. See [What works today](#what-works-today) for exactly what runs, the [benchmark](#benchmark-three-engines-measured) for measured latency across three engines, and [Accuracy](#accuracy-measured-not-asserted) for how often it's *right*.
+> **Status: ✅ Feature-complete — the full 12-week build, built in the open.** A portfolio piece demonstrating production-grade on-device AI on Android. **All eight Google `ai-samples` on-device capabilities are shipped**, and both halves of the measurement story are now in place — **latency *and* accuracy**. See [What works today](#what-works-today) for exactly what runs, the [benchmark](#benchmark-three-engines-measured) for measured latency across three engines, and [Accuracy](#accuracy-measured-not-asserted) for how often it's *right*.
 
 <p align="center">
   <img src="docs/media/capture-ondevice.gif" width="300" alt="Capture: point at a Funko box, the cascade runs visibly, and it identifies an owned pop entirely on-device" />
@@ -13,6 +13,16 @@ Arcana catalogs a collection of *anything* — Funko Pops, FigPins, trading card
 </p>
 
 <p align="center"><em>The capture flow — point the phone at a Funko box and watch the AI happen in front of you: the segmentation outline snaps on, the <code>#NNN</code> OCR callout lands, the catalog chain walks, and the identity settles. An <strong>owned</strong> pop resolves <strong>entirely on-device</strong> in ~1.6&nbsp;s, no network (left); an <strong>unowned</strong> pop <strong>escalates to cloud</strong> — the badge flips on-device→cloud (right) — then saves into your collection with a live eBay value.</em></p>
+
+<p align="center">
+  <img src="docs/media/portfolio.png" width="250" alt="Portfolio home: tracked value $30,327, up $755 this week, a 90-day sparkline, and an on-device weekly summary" />
+  &nbsp;
+  <img src="docs/media/collection.png" width="250" alt="Collection list: items with thumbnails, Pop numbers, gold NFT badges, and per-item 30-day value deltas" />
+  &nbsp;
+  <img src="docs/media/detail.png" width="250" alt="Item detail: tracked value with a last-synced label, alongside the separate eBay median active listing" />
+</p>
+
+<p align="center"><em>The value-first home (a real tracked total with an <strong>on-device</strong> weekly summary), the collection browser (per-item deltas, gold NFT badges), and item detail (tracked value vs. live eBay median, clearly distinguished).</em></p>
 
 ---
 
@@ -72,12 +82,18 @@ Measured on the real 504-item collection, on-device:
 
 | Question | Path | Answer |
 |---|---|---|
-| "how many Marvel do I own?" | **structured** | **100 Pops** (124 incl. duplicates), $2,263 |
+| "how many Marvel do I own?" | **structured** | **100 Pops** (124 incl. duplicates), $2,136 |
 | "which are NFT redeemable" | **structured** | **141 Pops**, $15,702 |
 | "any pops with dragons?" | **semantic** | Daemon Targaryen, Daenerys, **Vhagar** |
 | "spooky horror characters" | **semantic** | Pennywise, Annabelle, Freddy |
 
 The keyword-free match is the point: **"dragons" surfaces Vhagar** — a dragon whose name contains no form of the word "dragon" — from meaning alone.
+
+<p align="center">
+  <img src="docs/media/ask-marvel.png" width="300" alt="Ask Arcana answering 'how many Marvel do I own?' on-device: 'Verified facts state you own 100 Pops matching marvel (124 incl. duplicates)', with an on-device badge, latency line, and eight grounding chips" />
+</p>
+
+<p align="center"><em>The router in action: <em>"how many Marvel do I own?"</em> takes the <strong>structured</strong> path — the count is computed in SQL and handed to the model as a <strong>verified fact</strong> ("100 Pops … 124 incl. duplicates"), answered <strong>on-device</strong> in ~5.2 s, grounded in the eight most valuable matches.</em></p>
 
 **The embedding stack, and what I chose *not* to build:**
 - **EmbeddingGemma-300M** runs directly on the **LiteRT interpreter** (the AI Edge RAG SDK ships no EmbeddingGemma embedder, and its vector store over-engineers 504 items). The gated model is **side-loaded** and **presence-gated** — its absence is the lexical-fallback path, not a crash.

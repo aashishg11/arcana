@@ -52,3 +52,6 @@ seed-data/*.raw.csv
 
 # Design-review screenshots (may show personal collection)
 /docs/review/
+
+# Blog drafts — published externally (Medium / LinkedIn / personal site), not part of the repo
+/docs/blog/
