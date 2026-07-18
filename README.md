@@ -109,14 +109,14 @@ Measured through the in-app benchmark on the Pixel 10 Pro XL — the same `Gemin
 
 | Prompt | Engine | First-token (p50) | Total (p50) | Output tokens |
 |---|---|--:|--:|--:|
-| Grounded | **Nano** (on-device) | **0.44 s** | 2.70 s | n/a¹ |
-| Grounded | **Your Gemma** (LiteRT INT4, CPU) | 1.86 s | 3.02 s | 28 |
-| Grounded | **Cloud** (2.5 Flash-Lite) | 0.45 s | 0.49 s | 17 |
-| Short | **Nano** (on-device) | **0.39 s** | 3.35 s | n/a¹ |
-| Short | **Your Gemma** (LiteRT INT4, CPU) | 0.58 s | 1.88 s | 31 |
-| Short | **Cloud** (2.5 Flash-Lite) | 0.80 s | 0.80 s | 28 |
+| Grounded | **Nano** (on-device) | **0.43 s** | 2.70 s | n/a¹ |
+| Grounded | **Your Gemma** (LiteRT INT4, CPU) | 1.88 s | 3.05 s | 31 |
+| Grounded | **Cloud** (2.5 Flash-Lite) | 0.68 s | **0.69 s** | 33 |
+| Short | **Nano** (on-device) | **0.38 s** | 3.35 s | n/a¹ |
+| Short | **Your Gemma** (LiteRT INT4, CPU) | 0.60 s | 1.87 s | 31 |
+| Short | **Cloud** (2.5 Flash-Lite) | 0.68 s | **0.77 s** | 33 |
 
-**What the numbers say:** there's no free lunch. **Nano** gives the fastest first token (no network, TPU prefill) but can't report token counts. **Cloud** wins wall-clock total when the network is good. **My Gemma** is the honest middle — competitive decode, real token counts, and a first-token that scales with prompt length because CPU prefill is linear in tokens (0.58 s short → 1.86 s grounded). It's the *engineering* answer, not the fastest number: my own model, running privately, on a phone. Shipping the benchmark — rather than asserting "it's fast" — is the point.
+**What the numbers say:** there's no free lunch. **Nano** gives the fastest first token (no network, TPU prefill) but can't report token counts. **Cloud** wins wall-clock total when the network is good. **My Gemma** is the honest middle — competitive decode, real token counts, and a first-token that scales with prompt length because CPU prefill is linear in tokens (0.60 s short → 1.88 s grounded). It's the *engineering* answer, not the fastest number: my own model, running privately, on a phone. Shipping the benchmark — rather than asserting "it's fast" — is the point.
 
 ¹ Nano never reports token counts (a Firebase-AI on-device limitation); the UI renders "n/a", never a misleading 0. My Gemma (`sizeInTokens`) and cloud both do. Your Gemma's one-time ~3 s model load is amortized once per process and excluded from these figures.
 
