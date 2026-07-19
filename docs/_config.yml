@@ -1,0 +1,10 @@
+# GitHub Pages (Jekyll) config — serves the canonical write-up from /docs on main.
+title: Arcana
+description: "Privacy-first on-device AI on Android — the write-up."
+theme: jekyll-theme-cayman
+show_downloads: false
+
+# Only the canonical flagship post is published; nothing else in /docs is a page.
+# (media/ are static assets Jekyll copies as-is; the ignored blog drafts aren't in the repo.)
+exclude:
+  - media/

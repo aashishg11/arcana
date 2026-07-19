@@ -1,3 +1,9 @@
+---
+layout: default
+title: "On-Device AI Is Easy to Demo. Hard to Trust."
+permalink: /
+---
+
 # On-Device AI Is Easy to Demo. Hard to Trust.
 
 *What it actually took to ship — and measure — a privacy-first on-device AI app on a Pixel.*
