@@ -53,5 +53,16 @@ seed-data/*.raw.csv
 # Design-review screenshots (may show personal collection)
 /docs/review/
 
-# Blog drafts — published externally (Medium / LinkedIn / personal site), not part of the repo
-/docs/blog/
+# Blog working drafts (Medium/LinkedIn/short cuts, with publishing notes) stay out of the repo —
+# except the canonical flagship post, which is tracked so GitHub Pages can serve it.
+/docs/blog/*
+!/docs/blog/on-device-ai-you-can-trust.md
+
+# JetBrains IDE config — machine-specific, not for version control.
+/.idea/
+
+# Internal working docs — agent context, conventions, and design scratch. Kept local
+# (they reveal the build workflow and carry device-specific notes), not recruiter-facing.
+/CLAUDE.md
+/ARCANA_CONTEXT.md
+/SCREENS.md
