@@ -18,6 +18,10 @@ That bug — and how I found it — is the whole point of this post. Building an
 
 Arcana is a privacy-first Android app for a real 504-item collectible collection (Kotlin, Compose, Hilt, Room). It ships **eight on-device generative-AI capabilities** — natural-language Q&A over your collection, weekly summaries, a listing-copy writer, and photo identification — with **zero collection data leaving the device**; the cloud is an explicit, last-resort escalation, not the default. Everything below was measured on a Pixel 10 Pro XL, against my own real collection, with numbers I pre-registered as predictions before I ran them.
 
+<p align="center"><img src="media/portfolio.png" width="300" alt="Arcana portfolio home: tracked value $30,327, up $755 this week, a sparkline, and an on-device weekly summary"></p>
+
+<p align="center"><em>The value-first home — a real tracked total with an <strong>on-device</strong> weekly summary.</em></p>
+
 I'm going to skip the feature tour. What's worth your time is the engineering posture: on-device AI has a measurement problem, a set of hard ceilings, and three places where the obvious approach simply doesn't work — and saying so is the senior signal, not a gap.
 
 ## Act I — Building it on-device
@@ -40,6 +44,10 @@ Here's the part most on-device-AI writeups skip. A demo shows you *one* answer. 
 > On-device Nano reaches its **first token faster** than cloud (~0.4 s vs ~0.6–1.0 s — no network round-trip), but generates the full answer **~3–4× slower**. You buy privacy and a snappier first token; you pay in total latency.
 
 That's a real, quotable engineering tradeoff, and I only have it because I measured it separately for time-to-first-token and total. (It also surfaced a methodology trap: the cloud free tier's rate-limiter silently injects retry/backoff into "successful" calls, inflating cloud latency from ~0.7 s to ~9 s. A latency benchmark goes quietly wrong when the thing you're timing includes a backoff you didn't account for.)
+
+<p align="center"><img src="media/benchmark-3engine.png" width="300" alt="In-app benchmark comparing Nano, my own Gemma, and cloud on first-token and total latency, p50"></p>
+
+<p align="center"><em>The in-app benchmark — Nano vs. my own quantized Gemma vs. cloud, first-token and total, measured through the same interface the app uses.</em></p>
 
 **Accuracy, second — the missing half.** A benchmark that says "Nano's first token in 437 ms" cannot say "and how often is the answer right." So I built a separate accuracy eval: labeled fixtures, a runner, a scorer, and a committed results table. Two design decisions make its numbers mean something:
 
@@ -71,7 +79,11 @@ The plan for the Q&A feature was "replace keyword search with semantic search." 
 
 Vector search returns the top-k most *similar* items. Ask "how many Marvel do I own?" and you get 5 Marvels, never the total. Cranking `k` until it can count is just a worse `SELECT COUNT(*)`. So I built a **hybrid retriever**: a small, rules-based, LLM-free router classifies the question and dispatches it — *aggregate/filter/rank* ("how many Marvel", "most valuable", "added in 2023") to a precise **SQL** query, *fuzzy/semantic* ("any pops with dragons?") to **vectors**, and a lexical fallback when the embedding model is absent. The count is computed in SQL and handed to the model as an **authoritative fact** in the prompt — the model *phrases* a number it's been given, rather than deriving one from rows it only partly sees.
 
-On the real collection: "how many Marvel?" returns 100 Pops (124 including duplicates, $2,263), the true total; "dragons?" surfaces Vhagar, a dragon whose name contains no form of the word. Retrieval isn't one thing — *"find me things like X"* and *"how many X"* are different questions that deserve different machinery. (The embedding stack, for what it's worth, is EmbeddingGemma-300M with a **pure-Kotlin SentencePiece tokenizer I wrote from scratch** — every off-the-shelf option needed a native library downloaded at runtime, which isn't shippable — and brute-force cosine over 504 vectors directly in Room. No vector database; 504 items don't need one.)
+On the real collection: "how many Marvel?" returns 100 Pops (124 including duplicates, $2,136), the true total; "dragons?" surfaces Vhagar, a dragon whose name contains no form of the word. Retrieval isn't one thing — *"find me things like X"* and *"how many X"* are different questions that deserve different machinery. (The embedding stack, for what it's worth, is EmbeddingGemma-300M with a **pure-Kotlin SentencePiece tokenizer I wrote from scratch** — every off-the-shelf option needed a native library downloaded at runtime, which isn't shippable — and brute-force cosine over 504 vectors directly in Room. No vector database; 504 items don't need one.)
+
+<p align="center"><img src="media/ask-marvel.png" width="300" alt="Ask Arcana answering 'how many Marvel do I own?' on-device: 100 Pops, 124 including duplicates, with grounding chips"></p>
+
+<p align="center"><em>The count is computed in SQL and handed to the model as a <strong>verified fact</strong> ("100 Pops… 124 incl. duplicates"), answered <strong>on-device</strong>, grounded in the eight most valuable matches.</em></p>
 
 ### No #2 — my own quantized model, and why it doesn't ship as the default
 
@@ -86,6 +98,10 @@ I wanted to say I'd deployed my *own* model, not just called a vendor's. So I se
 LiteRT beats ExecuTorch on *both* axes. But look at the last row. **The blocker isn't speed, it's memory.** A 682 MB model file resides at ~1.5 GB RAM, because the INT4 embedding is dequantized back to fp32 in memory. An Android app holding 1.5 GB alongside Room, Coil, and a Compose UI is a low-memory-killer casualty the moment the user switches apps. Nano costs the app *zero* resident model memory, because AICore hosts it in a separate system process. 19.9 tok/s streams fine — it's ~2.5× reading pace — but 1.5 GB doesn't fit.
 
 So the shipping decision: Nano is the default, my LiteRT own-model is a **user-selectable** engine (behind the same seam, with a settings picker and its own benchmark column), and ExecuTorch stays as a benchmark artifact. The deliverable of that whole exploration was a *decision* backed by numbers on two axes — not a demo. "I evaluated it, hit this specific wall, measured the cost in tok/s *and RSS*, and chose accordingly" is a stronger story than either option alone.
+
+<p align="center"><img src="media/ask-yourgemma.png" width="300" alt="Ask Arcana answering from the self-quantized Gemma with a gold 'Your Gemma' badge and real token counts"></p>
+
+<p align="center"><em>My self-quantized Gemma 3 1B answering <strong>on-device</strong> — the gold "Your Gemma" badge, and the token counts Nano can't report.</em></p>
 
 ### No #3 — the price chart is partly synthetic, and I say so in the README
 
