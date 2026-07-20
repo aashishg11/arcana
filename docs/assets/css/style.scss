@@ -1,0 +1,27 @@
+---
+# Custom styles layered over jekyll-theme-cayman (front matter required so Jekyll compiles the SCSS).
+---
+@import "{{ site.theme }}";
+
+/* The SVG cover is our header — hide Cayman's default green banner. */
+.page-header { display: none; }
+
+/* Cover hero image */
+.cover {
+  display: block;
+  width: 100%;
+  margin: 0 auto 1.5rem;
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(20, 16, 50, 0.35);
+}
+
+/* Visually-hidden but kept for SEO / screen readers (the H1 lives in the cover art). */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

@@ -4,9 +4,12 @@ title: "On-Device AI Is Easy to Demo. Hard to Trust."
 permalink: /
 ---
 
-# On-Device AI Is Easy to Demo. Hard to Trust.
+<img src="media/cover.svg" class="cover" alt="On-Device AI Is Easy to Demo. Hard to Trust. — Arcana, a privacy-first on-device AI app measured on a Pixel">
 
-*What it actually took to ship — and measure — a privacy-first on-device AI app on a Pixel.*
+# On-Device AI Is Easy to Demo. Hard to Trust.
+{: .sr-only}
+
+<p align="center"><a href="https://github.com/aashishg11/arcana">View the code on GitHub →</a></p>
 
 ---
 
