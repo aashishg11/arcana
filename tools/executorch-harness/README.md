@@ -1,7 +1,7 @@
 # ExecuTorch harness (Arcana Week 5)
 
 The throwaway harness from Arcana's Week-5 curriculum/de-risk week — the evidence
-behind [`WEEK_05_SUMMARY.md`](../../WEEK_05_SUMMARY.md).
+behind [`WEEK_05_SUMMARY.md`](../../docs/journal/WEEK_05_SUMMARY.md).
 
 **This is not part of the Arcana app.** It is a **standalone** Android project (its own
 `settings.gradle.kts`, its own Gradle wrapper) that lives here so the whole Week-5 story is
