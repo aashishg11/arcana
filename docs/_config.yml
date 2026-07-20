@@ -4,6 +4,11 @@ description: "Privacy-first on-device AI on Android — the write-up."
 theme: jekyll-theme-cayman
 show_downloads: false
 
+# Social/link-preview image (Open Graph + large Twitter card) for LinkedIn/etc.
+image: https://aashishg11.github.io/arcana/media/og-cover.png
+twitter:
+  card: summary_large_image
+
 # Keep the weekly journal docs in the repo but out of the published Pages site.
 exclude:
   - journal/

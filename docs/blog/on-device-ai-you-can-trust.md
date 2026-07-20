@@ -2,6 +2,7 @@
 layout: default
 title: "On-Device AI Is Easy to Demo. Hard to Trust."
 permalink: /
+image: https://aashishg11.github.io/arcana/media/og-cover.png
 ---
 
 <header class="hero">
