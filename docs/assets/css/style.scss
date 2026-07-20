@@ -6,14 +6,20 @@
 /* The SVG cover is our header — hide Cayman's default green banner. */
 .page-header { display: none; }
 
-/* Cover hero image */
+/* Keep the 100vw full-bleed cover from adding a horizontal scrollbar. */
+body { overflow-x: hidden; }
+
+/* Full-bleed cover hero — spans the viewport edge-to-edge, flush to the top,
+   breaking out of Cayman's centered .main-content column. */
 .cover {
-  display: block;
-  width: 100%;
-  margin: 0 auto 1.5rem;
-  border-radius: 14px;
-  box-shadow: 0 12px 40px rgba(20, 16, 50, 0.35);
+  position: relative;
+  left: 50%;
+  right: 50%;
+  width: 100vw;
+  max-width: 100vw;
+  margin: -2rem -50vw 2.5rem;   /* top cancels main-content padding; sides bleed to the edges */
 }
+.cover img { display: block; width: 100%; height: auto; }
 
 /* Visually-hidden but kept for SEO / screen readers (the H1 lives in the cover art). */
 .sr-only {
