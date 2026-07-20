@@ -4,5 +4,9 @@ description: "Privacy-first on-device AI on Android — the write-up."
 theme: jekyll-theme-cayman
 show_downloads: false
 
+# Keep the weekly journal docs in the repo but out of the published Pages site.
+exclude:
+  - journal/
+
 # The flagship post is the only rendered page; docs/media/ is served as static assets
 # so the post's screenshots resolve at <baseurl>/media/…. (Ignored blog drafts aren't in the repo.)
