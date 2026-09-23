@@ -64,6 +64,8 @@ I self-quantized **Gemma 3 1B to INT4** and deployed it two ways — first with 
 - **The GPU is a dead end too.** The G5's GPU is an Imagination **PowerVR**, and LiteRT disables GPU weight-prep for PowerVR/Mali/Broadcom — decode collapses to ~6 tok/s.
 - **So the win came from the boring layer.** LiteRT's **CPU** path (XNNPACK, INT4) beats my ExecuTorch build on *both* axes — **27.4 tok/s / 1077 MB** vs 19.9 tok/s / 1477 MB — because its per-layer-embedder design keeps the embedding from materializing to fp32. "Use the vendor runtime on the vendor's chip" was right, for an unglamorous reason. Two independent toolchains (my Bazel build and Google's AAR) reach the identical CPU-only conclusion.
 
+**Week 13 closes the loop, cross-vendor.** On a **Snapdragon 8 Elite Gen 5** (Galaxy S26, Hexagon Arch V81), the same LiteRT-LM stack runs **Gemma-4-E2B (2B) at 44.5 tok/s decode / 293 tok/s prefill on the NPU** — **~4.5× the same model on CPU** (9.85 tok/s), from a toolchain (runner + dispatch + compiler plugin) built from source. The accelerator win the Tensor G5 couldn't deliver *does* exist; it just needed a different vendor's silicon. Two measured surprises: on-device **JIT compilation fails** (976 subgraphs exhaust the NSP), so the win is a **pre-compiled AOT** context; and the published **sm8750 (V79) context runs forward-compatibly on the S26's V81**.
+
 **The ship decision:** Nano stays the **default** — it runs out-of-process in AICore, so it costs **zero app-resident memory**; a permanently-resident 1 GB own-model shouldn't be forced on every user. The own-model is a **user-selectable** engine, proving the *producer* capability without paying its footprint by default. Model delivery is a dev **side-load** (the ~584 MB INT4 file isn't bundled in the APK); the picker presence-gates the option accordingly.
 
 The payoff for the architecture: this was a **full rewrite of the inference layer** — native runtime, a streaming listener bridged to a `Flow`, a single-inference `Mutex`, side-load lifecycle — that dropped in behind the **unchanged** `GeminiService` interface. The call sites, the benchmark, and the badge didn't move. That's the abstraction earning its keep.
@@ -166,7 +168,7 @@ The identification centerpiece — the **capture cascade** — ships as a **conf
 - **Android:** Kotlin, Jetpack Compose, Material 3, Hilt, Room, Coroutines/Flow, WorkManager, Coil, **CameraX**
 - **On-device AI (now):** Firebase AI Logic hybrid inference (`firebase-ai` + `firebase-ai-ondevice`), Gemini Nano via AICore (text + **multimodal** via the ML Kit GenAI **Prompt API**); ML Kit **Summarization**, **Rewriting** (the listing writer), **subject segmentation**, **text recognition**, **barcode scanning**; **EmbeddingGemma-300M** on the **LiteRT interpreter** for on-device RAG (a hand-written Gemma SentencePiece tokenizer, brute-force cosine in Room); a self-quantized **Gemma 3 1B (INT4)** via **LiteRT / MediaPipe LLM Inference** (`tasks-genai`), CPU, as a same-interface engine
 - **Market data:** real **eBay Browse** API (OAuth app token) behind the `PriceProvider` seam; credentials stay in a gitignored `ebay.properties`. eBay data is never fed to any on-device model (per eBay's 2025 API terms on AI use)
-- **On-device AI (roadmap):** cross-vendor NPU benchmark (Snapdragon / Hexagon) — parked pending a device
+- **On-device AI:** cross-vendor NPU benchmark (Snapdragon / Hexagon) — **done** (Week 13): own-model Gemma-4-E2B at **44.5 tok/s** on the Galaxy S26's Hexagon NPU (AOT)
 - **Testing:** JUnit, Turbine, coroutines-test, device-free fakes for every seam; a device **latency** benchmark and an **accuracy** eval harness (labeled fixtures + scorer + committed results) for retrieval and cascade identification
 
 ## Requirements & setup
@@ -194,7 +196,8 @@ The identification centerpiece — the **capture cascade** — ships as a **conf
 | 9 | **Capture UI** — camera → animated Review (the cascade running visibly) → identify → **save to collection**; real **eBay Browse** price integration | ✅ |
 | 10 | On-device **hybrid RAG** for Ask (EmbeddingGemma via LiteRT + a rules router: SQL for counts, vectors for meaning); **listing writer** (`genai-writing-assistance`) — **8/8 `ai-samples` capabilities** | ✅ |
 | 11 | **Accuracy eval harness** — labeled fixtures + runner + scorer + committed results for retrieval *and* cascade identification; caught 3 real bugs, all fixed with measured deltas | ✅ |
-| 12 | Cross-vendor NPU benchmark (Snapdragon/Hexagon — parked, no device); write-up & apply | ◻︎ |
+| 12 | Real value-tracking (as-of price series + WorkManager sync) + design-apply pass (`arcana-wireframes_3`) | ✅ |
+| 13 | **Cross-vendor NPU benchmark** — Snapdragon 8 Elite Gen 5 / Hexagon V81: own-model **Gemma-4-E2B at 44.5 tok/s** on the NPU (AOT); JIT→AOT pivot, built from source | ✅ |
 
 ## Open questions & known limitations
 
@@ -202,7 +205,7 @@ Stated plainly — surfacing these reads as rigor, not gaps.
 
 - **The value-history chart runs on seeded synthetic history, not real price history.** Current values are real (the HobbyDB import baseline); the *time series* behind the portfolio sparkline, the per-item chart, and every weekly / 30-day delta is deterministically seeded (`SeedMockHistory` / `MockPriceModel`, anchored on the real import value) so the feature is demonstrable on first open instead of a flat line on an empty axis. The tracking architecture is real and accumulates genuine history going forward via `WeeklyPriceSyncWorker`.
   - **Why not just pull it from eBay?** eBay's APIs don't expose a usable price series. **Browse** (what Arcana calls) returns *current active listings only*. **Marketplace Insights** — the sole sold/price-history endpoint — returns only a **rolling last-90-days** window of sold comps, is **Limited Release** (application-gated), and its Restricted-API terms bar feeding the data to an LLM. Retroactive long-run history would come from a paid source like **PriceCharting** (the documented `PriceProvider` upgrade path). So: current values real, tracking real and forward-accumulating, retroactive history unavailable without a paid feed.
-- **Cross-vendor NPU benchmark (Snapdragon / Hexagon) — parked, no device.** The Tensor G5 TPU is a measured dead end for LLM decode ([LiteRT #7787](https://github.com/google-ai-edge/LiteRT/issues/7787)); the open question is whether a Hexagon NPU clears the memory/throughput bar Tensor's didn't. Bounded, with an expected outcome; revisited if a device appears.
+- **Cross-vendor NPU benchmark (Snapdragon / Hexagon) — answered (Week 13).** With a Galaxy S26 (Snapdragon 8 Elite Gen 5, Hexagon V81), the own-model Gemma-4-E2B runs at **44.5 tok/s decode / 293 prefill** on the NPU via an **AOT** context — ~4.5× the same model on CPU, and above the Tensor-G5 CPU floor while running a 2× larger model. The Tensor G5 TPU remains a measured dead end ([LiteRT #7787](https://github.com/google-ai-edge/LiteRT/issues/7787)); the Hexagon NPU clears the bar it didn't. Caveats: **on-device JIT fails** (the NSP can't hold all 976 subgraphs — AOT is required), and this used the forward-compatible sm8750 (V79) context, not an sm8850-native AOT compile. Not yet wired into the app (a standalone-runner benchmark, like the Week-6 spikes).
 
 ## About
 
