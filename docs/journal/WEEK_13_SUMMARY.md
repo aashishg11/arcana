@@ -7,9 +7,10 @@ in the spirit of Week 11.
 
 **The headline:** *Arcana's own-model engine now has a real NPU number. On the Galaxy S26's Hexagon (Arch
 V81), the self-hosted LiteRT-LM stack runs **Gemma-4-E2B (a 2B-class model) at 44.5 tok/s decode / 293 tok/s
-prefill** on the NPU — **~4.5× the same model on CPU** (9.85 tok/s) and above our Week-6 CPU floor (27.4 on
-the Pixel, 34.4 on this S26's CPU) while running a **2× larger, newer model**. It even edges the published S26
-reference (41.7 tok/s). Getting there disproved the easy assumption: **on-device JIT compilation does not
+prefill** on the NPU — **~1.7× the decode (and ~9× the prefill) of the same model on CPU** (26.0 tok/s), and
+above our Week-6 CPU floor (27.4 on the Pixel, 34.4 on this S26's CPU) while running a **2× larger, newer
+model**. It even edges the published S26 reference (41.7 tok/s). And the No-#2 **memory wall** is measured, not
+guessed: ~2 GB resident on both backends, but the unreclaimable heap drops ~1.1 GB → ~0.85 GB CPU→NPU. Getting there disproved the easy assumption: **on-device JIT compilation does not
 work** for this model (976 subgraphs exhaust the NSP), so the win is an **AOT precompiled context** — and the
 surprise is that the **sm8750 (Hexagon V79) context runs forward-compatibly on the S26's V81**. The whole
 toolchain (runner + dispatch + compiler plugin) was built from source; the entire path is **gate-free** (the
@@ -36,13 +37,21 @@ Two devices are now in play: the Pixel 10 Pro XL (`57130DLCQ000ZJ`, Tensor G5 �
 | :--- | :--- | :--- | :--- | :--- |
 | Nano (AICore) | Gemini Nano | — (n/a) | — | warm total ~1.1–1.7 s, first-token ~100–135 ms; **Nano provisions on Samsung** |
 | LiteRT **CPU** | Gemma-3-**1B** q4 | **34.4 tok/s**\* | — | our floor; beats the Pixel's Week-6 27.4 (~25% faster silicon) |
-| CPU (XNNPACK) | Gemma-4-**E2B** (2B) | 9.85 tok/s | 14.7 tok/s | same 2B model, pure CPU (from the failed JIT fallback) |
+| CPU (XNNPACK) | Gemma-4-**E2B** (2B) | 26.0 tok/s | 33 tok/s | same 2B model, clean `--backend=cpu` |
 | **NPU (Hexagon V81)** | Gemma-4-**E2B** (2B) | **44.47 tok/s** | **293.03 tok/s** | AOT context; the result |
 | *reference (published S26)* | Gemma-4-E2B | *41.7* | — | we're slightly above it |
 
-\* The CPU 34.4 is an **end-to-end** figure (output tokens ÷ total latency, so it includes prefill on a short
-prompt); the NPU 44.47 is the runner's **pure decode** speed. Different metrics — the honest comparison is
-"NPU runs a **2× bigger** model **faster** than CPU runs the 1B, and **4.5× faster** than CPU runs that same 2B."
+\* The LiteRT-CPU 34.4 (row 2) is the **1B** model, end-to-end (incl. prefill); rows 3–4 are the **same 2B
+model, CPU vs NPU**, so *that* pair is the clean comparison: NPU is **~1.7× the decode and ~9× the prefill**.
+(An earlier "9.85 tok/s / 4.5×" figure came from a **broken JIT-fallback** run, not a clean CPU baseline —
+corrected here to the real `--backend=cpu` number, 26.0.)
+
+**Memory (the No-#2 wall, finally measured).** Peak resident memory is **~2 GB on both** backends — the NPU
+doesn't shrink the footprint. But the *shape* differs: the unreclaimable **anonymous heap drops ~1.1 GB (CPU)
+→ ~0.85 GB (NPU)**, because the AOT path **memory-maps** its weights (clean, reclaimable pages) instead of
+dequantizing the embedding into fp32 heap. So the NPU is faster **and** lighter on the axis that matters — but
+it still can't reach Nano's ~0 app-resident memory (AICore keeps Nano in a separate process). The wall is
+**lowered, not removed.**
 
 ## 3. Key decisions (each surfaced)
 

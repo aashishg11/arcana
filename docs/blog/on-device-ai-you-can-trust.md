@@ -129,4 +129,23 @@ So Arcana's real deliverable isn't eight AI features. It's a way of working: mea
 
 ---
 
+## Update (September 2026) — the accelerator win, on Snapdragon
+
+No #2 ended on a wall, plus an asterisk I'd left in the repo's open questions. The own-model verdict — 27.4 tok/s, but on the **CPU** — came with a footnote: the Pixel's Tensor G5 NPU is a *measured* dead end for LLM decode. It engages, claims the graph, then fails with contradictory buffer requirements and falls back to CPU. So "my own model, on-device" quietly meant "on CPU." The honest open question was whether that was a fact about **on-device LLMs** or a fact about **that one chip** — and I couldn't answer it without different silicon.
+
+Then a **Galaxy S26 — Snapdragon 8 Elite Gen 5, Hexagon NPU (Arch V81)** — arrived. I built the LiteRT-LM NPU toolchain from source (runner, dispatch, and the Qualcomm compiler plugin) and ran Gemma-4 E2B — a **2-billion-parameter** model, twice the size of the 1B I'd been running on the Pixel — on the same phone, CPU versus NPU:
+
+| Gemma-4 E2B (2B), Galaxy S26 | Decode | Prefill | Peak RSS | …of which hard heap |
+|---|---|---|---|---|
+| CPU (XNNPACK) | 26.0 tok/s | 33 tok/s | ~2.0 GB | ~1.1 GB |
+| **Hexagon NPU (AOT)** | **44.5 tok/s** | **293 tok/s** | ~2.1 GB | **~0.85 GB** |
+
+So: **~1.7× the decode and ~9× the prefill**, just by moving the same model off the CPU onto the NPU — and above Nano's ~36 tok/s from the table above, on a model twice the size. The accelerator win the Tensor chip couldn't deliver is real. It was a fact about the chip, not about the idea.
+
+Getting there had one genuinely interesting turn, and it's the same shape as everything else here: the obvious path fails, and the engineering is in knowing why. Pointing the runtime at the NPU to compile the model on the phone **doesn't work** — the model is 976 sub-graphs, and compiling them all exhausts the NPU's memory about a third of the way through, then aborts. That failure is *why* Qualcomm LLMs ship as **pre-compiled (AOT)** per-chip artifacts instead of compiling on device. The pleasant surprise: the only published artifact was built for last year's flagship (Hexagon V79), and it ran forward-compatibly on this year's V81 — so I got a real number without first building a V81-native compile.
+
+And the memory wall from No #2 — the thing that actually kept the own-model off the default path — I measured that too, and the honest answer is **better, not solved.** Total resident memory is ~2 GB on *both* backends; the NPU doesn't shrink the footprint. But the *shape* changes: on CPU, ~1.1 GB of that is **anonymous heap** — the part the low-memory killer can't reclaim — and on the NPU it drops to **~0.85 GB**, because the AOT path memory-maps its weights (clean, reclaimable pages) instead of dequantizing the embedding into fp32 heap. So the NPU is faster *and* a little lighter on the axis that matters — but it still can't touch Nano's ~0 app-resident memory, because AICore keeps Nano in a separate process and this model still lives in mine. Two honest caveats remain: this is a **standalone benchmark, not yet wired into the app**, and it's a **larger model** than the 1B in the table above. The own-model moved toward shippable; it didn't arrive. The dead end was never the accelerator — it was the chip.
+
+---
+
 *Arcana is a personal portfolio project. The code, the eval methodology, and the full "open questions" list are on GitHub.*
